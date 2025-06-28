@@ -1,0 +1,1187 @@
+openapi: 3.0.3
+info:
+  title: Insurance Brokerage API
+  description: |
+    API for the Insurance Brokerage application that allows management of clients, documents, and user authentication.
+  version: 1.0.0
+  contact:
+    email: support@example.com
+servers:
+  - url: http://localhost:5000
+    description: Development server
+  - url: https://api.insurance-brokerage.com
+    description: Production server
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  
+  schemas:
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+        error:
+          type: string
+    
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+    
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          type: object
+          properties:
+            id:
+              type: integer
+            email:
+              type: string
+            firstName:
+              type: string
+            lastName:
+              type: string
+            role:
+              type: string
+              enum: [admin, manager]
+    
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          type: string
+          enum: [admin, manager]
+    
+    CreateUserRequest:
+      type: object
+      required:
+        - email
+        - password
+        - firstName
+        - lastName
+        - role
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          type: string
+          enum: [admin, manager]
+        phoneNumber:
+          type: string
+    
+    CreateUserResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        userId:
+          type: integer
+    
+    Client:
+      type: object
+      required:
+        - customer_type
+        - product
+        - insurance_provider
+        - client_name
+        - mobile_no
+      properties:
+        id:
+          type: string
+        introducer_code:
+          type: string
+        customer_type:
+          type: string
+        product:
+          type: string
+        policy_:
+          type: string
+        insurance_provider:
+          type: string
+        branch:
+          type: string
+        client_name:
+          type: string
+        street1:
+          type: string
+        street2:
+          type: string
+        city:
+          type: string
+        district:
+          type: string
+        province:
+          type: string
+        telephone:
+          type: string
+        mobile_no:
+          type: string
+        contact_person:
+          type: string
+        email:
+          type: string
+          format: email
+        social_media:
+          type: string
+        nic_proof:
+          type: string
+        dob_proof:
+          type: string
+        business_registration:
+          type: string
+        svat_proof:
+          type: string
+        vat_proof:
+          type: string
+        coverage_proof:
+          type: string
+        sum_insured_proof:
+          type: string
+        policy_fee_invoice:
+          type: string
+        vat_fee_debit_note:
+          type: string
+        payment_receipt_proof:
+          type: string
+        policy_type:
+          type: string
+        policy_no:
+          type: string
+        policy_period_from:
+          type: string
+          format: date
+        policy_period_to:
+          type: string
+          format: date
+        coverage:
+          type: string
+        sum_insured:
+          type: number
+        basic_premium:
+          type: number
+        srcc_premium:
+          type: number
+        tc_premium:
+          type: number
+        net_premium:
+          type: number
+        stamp_duty:
+          type: number
+        admin_fees:
+          type: number
+        road_safety_fee:
+          type: number
+        policy_fee:
+          type: number
+        vat_fee:
+          type: number
+        total_invoice:
+          type: number
+        debit_note:
+          type: string
+        payment_receipt:
+          type: string
+        commission_type:
+          type: string
+        commission_basic:
+          type: number
+        commission_srcc:
+          type: number
+        commission_tc:
+          type: number
+        policies:
+          type: number
+    
+    ClientResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/Client'
+    
+    ClientsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Client'
+        totalCount:
+          type: integer
+          description: Total number of clients matching the request (for pagination)
+    
+    CreateClientResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+    
+    UpdateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+    
+    DocumentUploadResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        url:
+          type: string
+        fileName:
+          type: string
+    
+    SecureUrlResponse:
+      type: object
+      properties:
+        sasUrl:
+          type: string
+        expiresIn:
+          type: string
+
+security:
+  - BearerAuth: []
+
+paths:
+  /api/auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Login to the application
+      description: Authenticate a user and return a JWT token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Invalid request - Missing email or password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Account not active
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  
+  /api/auth/me:
+    get:
+      tags:
+        - Authentication
+      summary: Get current user
+      description: Get the current authenticated user's details
+      responses:
+        '200':
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          description: Unauthorized - Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  
+  /api/auth/users:
+    post:
+      tags:
+        - Users
+      summary: Create new user
+      description: Create a new user (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateUserResponse'
+        '400':
+          description: Missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - Not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Email already in use
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  
+  /api/clients:
+    get:
+      tags:
+        - Clients
+      summary: Get all clients
+      description: Get paginated list of all clients with optional search functionality
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+          description: Number of clients to return (default 100)
+        - in: query
+          name: offset
+          schema:
+            type: integer
+          description: Number of clients to skip (default 0)
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Search term to filter clients by name or mobile number
+      responses:
+        '200':
+          description: List of clients
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientsResponse'
+        '401':
+          description: Unauthorized - Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    
+    post:
+      tags:
+        - Clients
+      summary: Create a new client
+      description: Create a new insurance client
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Client'
+      responses:
+        '201':
+          description: Client created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateClientResponse'
+        '400':
+          description: Missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  
+  /api/clients/{id}:
+    get:
+      tags:
+        - Clients
+      summary: Get client by ID
+      description: Get a specific client by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Client ID
+      responses:
+        '200':
+          description: Client details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientResponse'
+        '401':
+          description: Unauthorized - Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Client not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    
+    put:
+      tags:
+        - Clients
+      summary: Update client
+      description: Update a client's information
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Client ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Client'
+      responses:
+        '200':
+          description: Client updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateResponse'
+        '401':
+          description: Unauthorized - Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Client not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    
+    delete:
+      tags:
+        - Clients
+      summary: Delete client
+      description: Delete a client
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Client ID
+      responses:
+        '200':
+          description: Client deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateResponse'
+        '401':
+          description: Unauthorized - Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Client not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  
+  /api/clients/search:
+    post:
+      tags:
+        - Clients
+      summary: Search clients
+      description: Search for clients based on criteria with pagination support
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+          description: Number of clients to return (default 100)
+        - in: query
+          name: offset
+          schema:
+            type: integer
+          description: Number of clients to skip (default 0)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Client'
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientsResponse'
+        '401':
+          description: Unauthorized - Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  
+  /api/clients/import-csv:
+    post:
+      tags:
+        - Clients
+      summary: Import clients from CSV
+      description: |
+        Import multiple clients from a CSV file. 
+        
+        For large files (500+ rows), the response will be streamed with progress updates during processing. 
+        The data is processed in batches of 25 records to improve performance and reduce database load.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: CSV file containing client data. Must include required fields - customer_type, product, insurance_provider, client_name, mobile_no
+      responses:
+        '200':
+          description: |
+            Clients imported successfully. 
+            
+            For large imports, response is streamed as chunked transfer encoding with progress updates.
+            Each chunk is a JSON object containing current progress.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  count:
+                    type: integer
+                    description: Number of clients successfully imported
+                  totalCount:
+                    type: integer
+                    description: Total number of records to process
+                  processedCount:
+                    type: integer
+                    description: Number of records processed so far
+                  progress:
+                    type: integer
+                    description: Percentage of import completed (0-100)
+                  ids:
+                    type: array
+                    items:
+                      type: string
+                    description: IDs of the created clients
+        '400':
+          description: Invalid request - No file uploaded or CSV missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  
+  /api/documents/upload/{clientId}/{documentType}:
+    post:
+      tags:
+        - Documents
+      summary: Upload document
+      description: Upload a document for a client
+      parameters:
+        - in: path
+          name: clientId
+          required: true
+          schema:
+            type: string
+          description: Client ID
+        - in: path
+          name: documentType
+          required: true
+          schema:
+            type: string
+            enum: [nic_proof, dob_proof, business_registration, svat_proof, vat_proof, coverage_proof, sum_insured_proof, policy_fee_invoice, vat_fee_debit_note, payment_receipt_proof]
+          description: Document type
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Document file to upload (max 5MB, JPEG, PNG, GIF, or PDF only)
+      responses:
+        '200':
+          description: Document uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentUploadResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  
+  /api/documents/{clientId}/{documentType}/url:
+    get:
+      tags:
+        - Documents
+      summary: Get document URL
+      description: Get a temporary URL for accessing a document
+      parameters:
+        - in: path
+          name: clientId
+          required: true
+          schema:
+            type: string
+          description: Client ID
+        - in: path
+          name: documentType
+          required: true
+          schema:
+            type: string
+          description: Document type
+        - in: query
+          name: blobUrl
+          required: true
+          schema:
+            type: string
+          description: Blob URL of the document
+      responses:
+        '200':
+          description: Secure URL generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecureUrlResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/documents/secure/{clientId}/{documentType}/{filename}:
+    get:
+      tags:
+        - Documents
+      summary: Get document content
+      description: Get the actual content of a document via proxy
+      parameters:
+        - in: path
+          name: clientId
+          required: true
+          schema:
+            type: string
+          description: Client ID
+        - in: path
+          name: documentType
+          required: true
+          schema:
+            type: string
+          description: Document type
+        - in: path
+          name: filename
+          required: true
+          schema:
+            type: string
+          description: Filename
+      responses:
+        '200':
+          description: Document content
+          content:
+            image/jpeg: {}
+            image/png: {}
+            image/gif: {}
+            application/pdf: {}
+        '401':
+          description: Unauthorized - Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/documents/{clientId}/{documentType}:
+    delete:
+      tags:
+        - Documents
+      summary: Delete document
+      description: Delete a document
+      parameters:
+        - in: path
+          name: clientId
+          required: true
+          schema:
+            type: string
+          description: Client ID
+        - in: path
+          name: documentType
+          required: true
+          schema:
+            type: string
+          description: Document type
+        - in: query
+          name: blobUrl
+          required: true
+          schema:
+            type: string
+          description: Blob URL of the document
+      responses:
+        '200':
+          description: Document deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/documents/delete/{clientId}/{documentType}/{filename}:
+    delete:
+      tags:
+        - Documents
+      summary: Delete document by filename
+      description: Delete a document using direct filename
+      parameters:
+        - in: path
+          name: clientId
+          required: true
+          schema:
+            type: string
+          description: Client ID
+        - in: path
+          name: documentType
+          required: true
+          schema:
+            type: string
+          description: Document type
+        - in: path
+          name: filename
+          required: true
+          schema:
+            type: string
+          description: Filename
+      responses:
+        '200':
+          description: File deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '401':
+          description: Unauthorized - Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/documents/token/{clientId}/{documentType}/{filename}:
+    get:
+      tags:
+        - Documents
+      summary: Get document token
+      description: Generate a temporary token for accessing a document
+      parameters:
+        - in: path
+          name: clientId
+          required: true
+          schema:
+            type: string
+          description: Client ID
+        - in: path
+          name: documentType
+          required: true
+          schema:
+            type: string
+          description: Document type
+        - in: path
+          name: filename
+          required: true
+          schema:
+            type: string
+          description: Filename
+      responses:
+        '200':
+          description: Token generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: The generated token
+                  url:
+                    type: string
+                    description: The public URL with token
+                  expires:
+                    type: string
+                    description: Expiration time in ISO format
+        '401':
+          description: Unauthorized - Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/documents/public/{token}/{clientId}/{documentType}/{filename}:
+    get:
+      tags:
+        - Documents
+      summary: Access document with token
+      description: Access a document using a temporary token (no authentication required)
+      security: []
+      parameters:
+        - in: path
+          name: token
+          required: true
+          schema:
+            type: string
+          description: Access token
+        - in: path
+          name: clientId
+          required: true
+          schema:
+            type: string
+          description: Client ID
+        - in: path
+          name: documentType
+          required: true
+          schema:
+            type: string
+          description: Document type
+        - in: path
+          name: filename
+          required: true
+          schema:
+            type: string
+          description: Filename
+      responses:
+        '200':
+          description: Document content
+          content:
+            image/jpeg: {}
+            image/png: {}
+            image/gif: {}
+            application/pdf: {}
+        '403':
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/health:
+    get:
+      tags:
+        - System
+      summary: Health check
+      description: Check if the API is running
+      security: []
+      responses:
+        '200':
+          description: API is running
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string 
