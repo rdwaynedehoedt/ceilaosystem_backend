@@ -670,4 +670,51 @@ router.get('/types', (req: Request, res: Response) => {
   res.json({ validDocumentTypes });
 });
 
+/**
+ * @route POST /api/documents/update-client-urls
+ * @desc Update document URLs for a new client (change from temp ID to real ID)
+ * @access Private
+ */
+router.post('/update-client-urls', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { tempClientId, realClientId, documentType, filename } = req.body;
+    
+    if (!tempClientId || !realClientId || !documentType || !filename) {
+      return res.status(400).json({ 
+        message: 'tempClientId, realClientId, documentType, and filename are required' 
+      });
+    }
+    
+    // Validate document type
+    if (!validDocumentTypes.includes(documentType)) {
+      return res.status(400).json({ 
+        message: `Invalid document type. Valid types are: ${validDocumentTypes.join(', ')}` 
+      });
+    }
+    
+    console.log(`Updating document URL from ${tempClientId} to ${realClientId} for ${documentType}/${filename}`);
+    
+    // Generate new URL with real client ID
+    const newUrl = await storageService.generateSecureUrl(realClientId, documentType, filename);
+    
+    // Update the client record in the database
+    const { Client } = await import('../models/Client');
+    const updateData = { [documentType]: newUrl };
+    await Client.update(realClientId, updateData);
+    
+    console.log(`Successfully updated ${documentType} URL for client ${realClientId}`);
+    
+    res.json({
+      message: 'Document URL updated successfully',
+      newUrl: newUrl
+    });
+  } catch (error: any) {
+    console.error('Error updating document URL:', error);
+    res.status(500).json({ 
+      message: 'Failed to update document URL', 
+      details: error.message 
+    });
+  }
+});
+
 export default router; 
