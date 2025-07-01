@@ -260,7 +260,13 @@ router.get('/secure/:clientId/:documentType/:filename', authenticate, async (req
         // Check if file exists
         if (!fs.existsSync(url)) {
           console.error(`Local file not found: ${url}`);
-          return res.status(404).json({ message: 'Document not found' });
+          return res.status(404).json({ 
+            message: 'Document not found',
+            clientId,
+            documentType,
+            filename,
+            attemptedPath: url
+          });
         }
         
         // Determine content type based on file extension
@@ -294,7 +300,10 @@ router.get('/secure/:clientId/:documentType/:filename', authenticate, async (req
           return res.status(response.status).json({ 
             message: 'Document not found',
             status: response.status,
-            statusText: response.statusText
+            statusText: response.statusText,
+            clientId,
+            documentType,
+            filename
           });
         }
         
@@ -319,16 +328,28 @@ router.get('/secure/:clientId/:documentType/:filename', authenticate, async (req
         console.error('Error fetching document from Azure:', fetchError);
         return res.status(500).json({ 
           message: 'Error retrieving document content',
-          error: fetchError instanceof Error ? fetchError.message : 'Unknown error'
+          error: fetchError instanceof Error ? fetchError.message : 'Unknown error',
+          clientId,
+          documentType,
+          filename
         });
       }
     } catch (error) {
       console.error('Error generating secure URL:', error);
-      return res.status(500).json({ message: 'Error generating secure URL' });
+      return res.status(500).json({ 
+        message: 'Error generating secure URL or finding file locally',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        clientId,
+        documentType,
+        filename
+      });
     }
   } catch (error) {
     console.error('Error serving document:', error);
-    return res.status(500).json({ message: 'Error serving document' });
+    return res.status(500).json({ 
+      message: 'Error serving document',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 });
 

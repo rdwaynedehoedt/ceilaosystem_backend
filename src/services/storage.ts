@@ -314,7 +314,7 @@ export class BlobStorageService {
         
         if (!fs.existsSync(fullPath)) {
           console.error(`File not found at path: ${fullPath}`);
-          throw new Error('File not found');
+          throw new Error(`File not found at local path: ${fullPath}`);
         }
         
         console.log(`Returning local file path: ${fullPath}`);
@@ -366,7 +366,39 @@ export class BlobStorageService {
             }
           }
           
-          throw new Error(`File not found: ${fileName}`);
+          // Try to list all blobs in the container for this client and document type to see what's available
+          try {
+            const blobs: string[] = [];
+            for await (const blob of containerClient.listBlobsFlat({ prefix: `${clientId}/${documentType}/` })) {
+              blobs.push(blob.name);
+            }
+            console.log(`Available blobs for ${clientId}/${documentType}/:`, blobs);
+            
+            if (blobs.length > 0) {
+              // Try to find a blob with a similar name (case-insensitive)
+              const targetFileName = fileName.toLowerCase();
+              const similarBlob = blobs.find(blob => {
+                const blobFileName = blob.split('/').pop()?.toLowerCase();
+                return blobFileName === targetFileName || blobFileName?.includes(targetFileName) || targetFileName.includes(blobFileName || '');
+              });
+              
+              if (similarBlob) {
+                console.log(`Found similar blob: ${similarBlob}, using it instead`);
+                const similarBlobClient = containerClient.getBlobClient(similarBlob);
+                const sasOptions = {
+                  expiresOn: new Date(new Date().valueOf() + expirySeconds * 1000),
+                  permissions: BlobSASPermissions.parse("r"),
+                  contentDisposition: 'inline',
+                  protocol: 'https,http' as SASProtocol
+                };
+                return await similarBlobClient.generateSasUrl(sasOptions);
+              }
+            }
+          } catch (listError) {
+            console.error('Error listing blobs:', listError);
+          }
+          
+          throw new Error(`File not found: ${fileName}. Checked Azure blob: ${blobPath}, local path: ${localPath}, uploads path: ${uploadsPath}`);
         }
         
         console.log(`Blob exists: ${blobPath}, generating SAS URL...`);
@@ -392,7 +424,11 @@ export class BlobStorageService {
       }
     } catch (error) {
       console.error('Error generating secure URL:', error);
-      throw new Error('Failed to generate secure access URL');
+      if (error instanceof Error) {
+        throw new Error(`Failed to generate secure access URL: ${error.message}`);
+      } else {
+        throw new Error('Failed to generate secure access URL');
+      }
     }
   }
 

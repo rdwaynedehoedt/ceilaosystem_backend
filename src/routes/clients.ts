@@ -301,6 +301,13 @@ router.post('/import-csv', authenticate, authorize(['admin', 'manager']), upload
               'policy_period_from', 'policy_period_to'
             ];
             
+            // Handle new text fields (all optional)
+            const newTextFields = [
+              'ceilao_ib_file_no', 'policyholder', 'vehicle_number', 'main_class',
+              'proposal_form_field', 'quotation_field', 'invoice_debit_note_field',
+              'payment_receipt_field'
+            ];
+            
             if (numericFields.includes(key) && data[key]) {
               // Convert to number and handle empty strings
               (clientData as any)[key] = data[key] ? parseFloat(data[key]) : 0;
@@ -318,8 +325,12 @@ router.post('/import-csv', authenticate, authorize(['admin', 'manager']), upload
                 console.warn(`Error parsing date for ${key}:`, err);
                 (clientData as any)[key] = data[key]; // Keep original if parsing fails
               }
+            } else if (newTextFields.includes(key)) {
+              // Handle new text fields - ensure they are strings
+              (clientData as any)[key] = data[key] || '';
             } else {
-              (clientData as any)[key] = data[key];
+              // Handle all other fields (including document URL fields)
+              (clientData as any)[key] = data[key] || '';
             }
           });
 
@@ -454,6 +465,83 @@ router.post('/import-csv', authenticate, authorize(['admin', 'manager']), upload
         error: error instanceof Error ? error.message : 'Unknown error'
       }));
     }
+  }
+});
+
+// Get CSV template
+router.get('/csv-template', authenticate, authorize(['admin', 'manager']), async (req: Request, res: Response) => {
+  try {
+    // Define all possible fields for the CSV template
+    const csvHeaders = [
+      'id', 'introducer_code', 'customer_type', 'product', 'policy_', 'insurance_provider', 'branch',
+      'client_name', 'street1', 'street2', 'city', 'district', 'province', 'telephone', 'mobile_no',
+      'contact_person', 'email', 'social_media', 'nic_proof', 'dob_proof', 'business_registration',
+      'svat_proof', 'vat_proof', 'coverage_proof', 'sum_insured_proof', 'policy_fee_invoice',
+      'vat_fee_debit_note', 'payment_receipt_proof', 'policy_type', 'policy_no', 'policy_period_from',
+      'policy_period_to', 'coverage', 'sum_insured', 'basic_premium', 'srcc_premium', 'tc_premium',
+      'net_premium', 'stamp_duty', 'admin_fees', 'road_safety_fee', 'policy_fee', 'vat_fee',
+      'total_invoice', 'debit_note', 'payment_receipt', 'commission_type', 'commission_basic',
+      'commission_srcc', 'commission_tc', 'policies', 'ceilao_ib_file_no', 'policyholder',
+      'vehicle_number', 'main_class', 'proposal_form_doc', 'proposal_form_field', 'quotation_doc',
+      'quotation_field', 'schedule_doc', 'cr_copy_doc', 'invoice_debit_note_doc',
+      'invoice_debit_note_field', 'payment_receipt_doc', 'payment_receipt_field', 'nic_br_doc'
+    ];
+
+    // Create CSV header row
+    const csvContent = csvHeaders.join(',') + '\n';
+
+    // Set response headers for CSV download
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="client_template.csv"');
+    
+    res.send(csvContent);
+  } catch (error) {
+    console.error('Error generating CSV template:', error);
+    res.status(500).json({ success: false, message: 'Failed to generate CSV template' });
+  }
+});
+
+// Get CSV template with sample data
+router.get('/csv-template-with-sample', authenticate, authorize(['admin', 'manager']), async (req: Request, res: Response) => {
+  try {
+    // Define all possible fields for the CSV template
+    const csvHeaders = [
+      'id', 'introducer_code', 'customer_type', 'product', 'policy_', 'insurance_provider', 'branch',
+      'client_name', 'street1', 'street2', 'city', 'district', 'province', 'telephone', 'mobile_no',
+      'contact_person', 'email', 'social_media', 'nic_proof', 'dob_proof', 'business_registration',
+      'svat_proof', 'vat_proof', 'coverage_proof', 'sum_insured_proof', 'policy_fee_invoice',
+      'vat_fee_debit_note', 'payment_receipt_proof', 'policy_type', 'policy_no', 'policy_period_from',
+      'policy_period_to', 'coverage', 'sum_insured', 'basic_premium', 'srcc_premium', 'tc_premium',
+      'net_premium', 'stamp_duty', 'admin_fees', 'road_safety_fee', 'policy_fee', 'vat_fee',
+      'total_invoice', 'debit_note', 'payment_receipt', 'commission_type', 'commission_basic',
+      'commission_srcc', 'commission_tc', 'policies', 'ceilao_ib_file_no', 'policyholder',
+      'vehicle_number', 'main_class', 'proposal_form_doc', 'proposal_form_field', 'quotation_doc',
+      'quotation_field', 'schedule_doc', 'cr_copy_doc', 'invoice_debit_note_doc',
+      'invoice_debit_note_field', 'payment_receipt_doc', 'payment_receipt_field', 'nic_br_doc'
+    ];
+
+    // Create sample data for one test client
+    const sampleData = [
+      'TEST001', 'INT001', 'Individual', 'Motor Insurance', 'Comprehensive', 'ABC Insurance', 'Colombo',
+      'John Doe', '123 Main Street', 'Apt 4B', 'Colombo', 'Western', 'Western Province', '+94112345678', '+94771234567',
+      'John Doe', 'john.doe@email.com', 'LinkedIn: johndoe', '', '', '', '', '', '', '', '', '',
+      'Comprehensive', 'POL123456', '2024-01-01', '2025-01-01', 'Vehicle Damage, Third Party', '500000', '15000', '500', '2000',
+      '17200', '500', '1000', '500', '20000', '20000', 'DN001', 'PR001', 'Percentage', '1500', '50', '200',
+      '1', 'IB001', 'John Doe', 'ABC123', 'Private Car', '', 'Sample proposal form data', '', 'Sample quotation data',
+      '', '', '', 'Sample invoice data', '', 'Sample payment data', ''
+    ];
+
+    // Create CSV content with headers and sample data
+    const csvContent = csvHeaders.join(',') + '\n' + sampleData.join(',') + '\n';
+
+    // Set response headers for CSV download
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="client_template_with_sample.csv"');
+    
+    res.send(csvContent);
+  } catch (error) {
+    console.error('Error generating CSV template with sample:', error);
+    res.status(500).json({ success: false, message: 'Failed to generate CSV template with sample' });
   }
 });
 
