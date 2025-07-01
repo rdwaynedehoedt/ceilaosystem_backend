@@ -1,4 +1,4 @@
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import storageService from '../services/storage';
@@ -32,6 +32,15 @@ const upload = multer({
   },
 });
 
+// Single source of truth for valid document types
+export const validDocumentTypes = [
+  'nic_proof', 'dob_proof', 'business_registration', 'svat_proof', 'vat_proof', 
+  'coverage_proof', 'sum_insured_proof', 'policy_fee_invoice', 'vat_fee_debit_note', 'payment_receipt_proof',
+  // New document types for enhanced client management
+  'proposal_form_doc', 'quotation_doc', 'schedule_doc', 'cr_copy_doc', 
+  'invoice_debit_note_doc', 'payment_receipt_doc', 'nic_br_doc'
+];
+
 /**
  * @route POST /api/documents/upload/:clientId/:documentType
  * @desc Upload a document for a client
@@ -39,27 +48,41 @@ const upload = multer({
  */
 router.post('/upload/:clientId/:documentType', authenticate, upload.single('file'), async (req: AuthRequest, res: Response) => {
   try {
+    console.log('Document upload request received:', {
+      clientId: req.params.clientId,
+      documentType: req.params.documentType,
+      hasFile: !!req.file,
+      fileInfo: req.file ? {
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size
+      } : null
+    });
+    
     if (!req.file) {
+      console.log('No file uploaded');
       return res.status(400).json({ message: 'No file uploaded' });
     }
     
     const { clientId, documentType } = req.params;
     
     if (!clientId || !documentType) {
+      console.log('Missing required parameters:', { clientId, documentType });
       return res.status(400).json({ message: 'Client ID and document type are required' });
     }
     
     // Validate document type
-    const validDocumentTypes = ['nic_proof', 'dob_proof', 'business_registration', 'svat_proof', 'vat_proof', 
-    'coverage_proof', 'sum_insured_proof', 'policy_fee_invoice', 'vat_fee_debit_note', 'payment_receipt_proof'];
-    
+    console.log('Validating document type:', { documentType, isValid: validDocumentTypes.includes(documentType) });
     if (!validDocumentTypes.includes(documentType)) {
+      console.log('Invalid document type:', documentType);
       return res.status(400).json({ message: `Invalid document type. Valid types are: ${validDocumentTypes.join(', ')}` });
     }
     
     const file = req.file;
     const fileExtension = path.extname(file.originalname);
     const fileName = `${uuidv4()}${fileExtension}`;
+    
+    console.log('Uploading file:', { fileName, fileExtension, mimetype: file.mimetype });
     
     // Upload to Azure Blob Storage
     const result = await storageService.uploadFile(
@@ -70,6 +93,8 @@ router.post('/upload/:clientId/:documentType', authenticate, upload.single('file
       file.mimetype
     );
     
+    console.log('File uploaded successfully:', { url: result.url, fileName });
+    
     res.json({
       message: 'File uploaded successfully',
       url: result.url,
@@ -79,6 +104,21 @@ router.post('/upload/:clientId/:documentType', authenticate, upload.single('file
     console.error('Error uploading document:', error);
     res.status(500).json({ message: error.message || 'Failed to upload document' });
   }
+});
+
+// Error handling middleware for multer errors
+router.use((error: any, req: Request, res: Response, next: NextFunction) => {
+  if (error instanceof multer.MulterError) {
+    console.error('Multer error:', error);
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ message: 'File too large. Maximum size is 5MB.' });
+    }
+    return res.status(400).json({ message: `File upload error: ${error.message}` });
+  } else if (error) {
+    console.error('File upload error:', error);
+    return res.status(400).json({ message: error.message || 'File upload failed' });
+  }
+  next();
 });
 
 /**
@@ -140,8 +180,8 @@ router.get('/:clientId/:documentType/url', authenticate, async (req: Request, re
       expiresIn: '5 minutes',
     });
   } catch (error: any) {
-    console.error('Error generating secure URL:', error);
-    res.status(500).json({ message: error.message || 'Failed to generate document URL' });
+    console.error(`Error generating secure URL or finding file locally for clientId=${clientId}, documentType=${documentType}, fileName=${fileName}:`, error);
+    res.status(500).json({ message: 'Error generating secure URL or finding file locally', details: error.message });
   }
 });
 

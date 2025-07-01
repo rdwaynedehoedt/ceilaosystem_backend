@@ -1,53 +1,5 @@
--- Add new document fields to clients table if they don't exist
-IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'clients' AND COLUMN_NAME = 'coverage_proof')
-BEGIN
-    ALTER TABLE clients ADD coverage_proof VARCHAR(255);
-END
-GO
-
-IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'clients' AND COLUMN_NAME = 'sum_insured_proof')
-BEGIN
-    ALTER TABLE clients ADD sum_insured_proof VARCHAR(255);
-END
-GO
-
-IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'clients' AND COLUMN_NAME = 'policy_fee_invoice')
-BEGIN
-    ALTER TABLE clients ADD policy_fee_invoice VARCHAR(255);
-END
-GO
-
-IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'clients' AND COLUMN_NAME = 'vat_fee_debit_note')
-BEGIN
-    ALTER TABLE clients ADD vat_fee_debit_note VARCHAR(255);
-END
-GO
-
-IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'clients' AND COLUMN_NAME = 'payment_receipt_proof')
-BEGIN
-    ALTER TABLE clients ADD payment_receipt_proof VARCHAR(255);
-END
-GO
-
-PRINT 'Database schema updated with new document fields';
-GO
-
--- Add email index to users table if it doesn't exist
-IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_users_email' AND object_id = OBJECT_ID('users'))
-BEGIN
-    CREATE INDEX idx_users_email ON users(email);
-    PRINT 'Created index on users.email for faster login queries';
-END
-ELSE
-BEGIN
-    PRINT 'Index on users.email already exists';
-END
-GO
-
--- Add any other performance-related database changes below 
-
 -- Migration script to add new fields to clients table
--- Run this script to update existing databases
+-- Run this script in your database to add the new fields
 
 -- Add new fields for enhanced client management
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS ceilao_ib_file_no VARCHAR(100);
@@ -66,7 +18,7 @@ ALTER TABLE clients ADD COLUMN IF NOT EXISTS payment_receipt_doc VARCHAR(255);
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS payment_receipt_field VARCHAR(255);
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS nic_br_doc VARCHAR(255);
 
--- Add indexes for the new fields
+-- Add indexes for the new fields (optional, for better performance)
 CREATE INDEX IF NOT EXISTS idx_ceilao_ib_file_no ON clients(ceilao_ib_file_no);
 CREATE INDEX IF NOT EXISTS idx_policyholder ON clients(policyholder);
 CREATE INDEX IF NOT EXISTS idx_vehicle_number ON clients(vehicle_number);
@@ -102,4 +54,13 @@ WHERE ceilao_ib_file_no IS NULL
    OR invoice_debit_note_field IS NULL 
    OR payment_receipt_doc IS NULL 
    OR payment_receipt_field IS NULL 
-   OR nic_br_doc IS NULL; 
+   OR nic_br_doc IS NULL;
+
+-- Verify the changes
+SELECT 
+    'Migration completed successfully' as status,
+    COUNT(*) as total_clients,
+    COUNT(ceilao_ib_file_no) as clients_with_ceilao_ib_file_no,
+    COUNT(policyholder) as clients_with_policyholder,
+    COUNT(vehicle_number) as clients_with_vehicle_number
+FROM clients; 

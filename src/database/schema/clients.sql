@@ -23,6 +23,11 @@ CREATE TABLE IF NOT EXISTS clients (
     business_registration VARCHAR(255),
     svat_proof VARCHAR(255),
     vat_proof VARCHAR(255),
+    coverage_proof VARCHAR(255),
+    sum_insured_proof VARCHAR(255),
+    policy_fee_invoice VARCHAR(255),
+    vat_fee_debit_note VARCHAR(255),
+    payment_receipt_proof VARCHAR(255),
     policy_type VARCHAR(100),
     policy_no VARCHAR(100),
     policy_period_from VARCHAR(50),
@@ -47,6 +52,22 @@ CREATE TABLE IF NOT EXISTS clients (
     commission_tc DECIMAL(15, 2) DEFAULT 0,
     sales_rep_id VARCHAR(50),
     policies INT DEFAULT 0,
+    -- New fields for enhanced client management
+    ceilao_ib_file_no VARCHAR(100),
+    policyholder VARCHAR(255),
+    vehicle_number VARCHAR(50),
+    main_class VARCHAR(100),
+    proposal_form_doc VARCHAR(255),
+    proposal_form_field VARCHAR(255),
+    quotation_doc VARCHAR(255),
+    quotation_field VARCHAR(255),
+    schedule_doc VARCHAR(255),
+    cr_copy_doc VARCHAR(255),
+    invoice_debit_note_doc VARCHAR(255),
+    invoice_debit_note_field VARCHAR(255),
+    payment_receipt_doc VARCHAR(255),
+    payment_receipt_field VARCHAR(255),
+    nic_br_doc VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (sales_rep_id) REFERENCES users(id) ON DELETE SET NULL
@@ -57,4 +78,8 @@ CREATE INDEX idx_client_name ON clients(client_name);
 CREATE INDEX idx_mobile_no ON clients(mobile_no);
 CREATE INDEX idx_policy_no ON clients(policy_no);
 CREATE INDEX idx_product ON clients(product);
-CREATE INDEX idx_sales_rep ON clients(sales_rep_id); 
+CREATE INDEX idx_sales_rep ON clients(sales_rep_id);
+-- New indexes for the new fields
+CREATE INDEX idx_ceilao_ib_file_no ON clients(ceilao_ib_file_no);
+CREATE INDEX idx_policyholder ON clients(policyholder);
+CREATE INDEX idx_vehicle_number ON clients(vehicle_number); 

@@ -293,7 +293,7 @@ router.post('/import-csv', authenticate, authorize(['admin', 'manager']), upload
               'sum_insured', 'basic_premium', 'srcc_premium', 'tc_premium', 
               'net_premium', 'stamp_duty', 'admin_fees', 'road_safety_fee', 
               'policy_fee', 'vat_fee', 'total_invoice', 'commission_basic',
-              'commission_srcc', 'commission_tc'
+              'commission_srcc', 'commission_tc', 'policies'
             ];
             
             // Handle date fields

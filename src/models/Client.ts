@@ -54,6 +54,21 @@ export interface ClientData {
   commission_tc?: number;
   sales_rep_id?: number;
   policies?: number;
+  ceilao_ib_file_no?: string;
+  policyholder?: string;
+  vehicle_number?: string;
+  main_class?: string;
+  proposal_form_doc?: string;
+  proposal_form_field?: string;
+  quotation_doc?: string;
+  quotation_field?: string;
+  schedule_doc?: string;
+  cr_copy_doc?: string;
+  invoice_debit_note_doc?: string;
+  invoice_debit_note_field?: string;
+  payment_receipt_doc?: string;
+  payment_receipt_field?: string;
+  nic_br_doc?: string;
 }
 
 export class Client {
