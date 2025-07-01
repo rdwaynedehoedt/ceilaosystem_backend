@@ -5,6 +5,7 @@ import storageService from '../services/storage';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import path from 'path';
 import fs from 'fs';
+import { validDocumentTypes } from '../utils/documentTypes';
 
 const router = express.Router();
 
@@ -31,15 +32,6 @@ const upload = multer({
     }
   },
 });
-
-// Single source of truth for valid document types
-export const validDocumentTypes = [
-  'nic_proof', 'dob_proof', 'business_registration', 'svat_proof', 'vat_proof', 
-  'coverage_proof', 'sum_insured_proof', 'policy_fee_invoice', 'vat_fee_debit_note', 'payment_receipt_proof',
-  // New document types for enhanced client management
-  'proposal_form_doc', 'quotation_doc', 'schedule_doc', 'cr_copy_doc', 
-  'invoice_debit_note_doc', 'payment_receipt_doc', 'nic_br_doc'
-];
 
 /**
  * @route POST /api/documents/upload/:clientId/:documentType
@@ -667,6 +659,15 @@ router.get('/token/:clientId/:documentType/:filename', authenticate, (req: Reque
     url: publicUrl,
     expires: new Date(timestamp + 30 * 60 * 1000).toISOString() // 30 minutes
   });
+});
+
+/**
+ * @route GET /api/documents/types
+ * @desc Get the list of valid document types
+ * @access Public
+ */
+router.get('/types', (req: Request, res: Response) => {
+  res.json({ validDocumentTypes });
 });
 
 export default router; 

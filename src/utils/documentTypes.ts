@@ -1,0 +1,19 @@
+export const validDocumentTypes = [
+  'nic_proof',
+  'dob_proof',
+  'business_registration',
+  'svat_proof',
+  'vat_proof',
+  'coverage_proof',
+  'sum_insured_proof',
+  'policy_fee_invoice',
+  'vat_fee_debit_note',
+  'payment_receipt_proof',
+  'proposal_form_doc',
+  'quotation_doc',
+  'schedule_doc',
+  'cr_copy_doc',
+  'invoice_debit_note_doc',
+  'payment_receipt_doc',
+  'nic_br_doc'
+]; 
