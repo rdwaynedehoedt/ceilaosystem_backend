@@ -678,32 +678,45 @@ router.get('/types', (req: Request, res: Response) => {
 router.post('/update-client-urls', authenticate, async (req: Request, res: Response) => {
   try {
     const { tempClientId, realClientId, documentType, filename } = req.body;
-    
     if (!tempClientId || !realClientId || !documentType || !filename) {
       return res.status(400).json({ 
         message: 'tempClientId, realClientId, documentType, and filename are required' 
       });
     }
-    
-    // Validate document type
     if (!validDocumentTypes.includes(documentType)) {
       return res.status(400).json({ 
         message: `Invalid document type. Valid types are: ${validDocumentTypes.join(', ')}` 
       });
     }
-    
-    console.log(`Updating document URL from ${tempClientId} to ${realClientId} for ${documentType}/${filename}`);
-    
+    // Copy the file in Azure from tempClientId to realClientId
+    const { BlobServiceClient } = require('@azure/storage-blob');
+    const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
+    const containerName = process.env.AZURE_STORAGE_CONTAINER_NAME || 'customer-documents';
+    const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
+    const containerClient = blobServiceClient.getContainerClient(containerName);
+    const sourceBlobPath = `${tempClientId}/${documentType}/${filename}`;
+    const destBlobPath = `${realClientId}/${documentType}/${filename}`;
+    const sourceBlobClient = containerClient.getBlobClient(sourceBlobPath);
+    const destBlobClient = containerClient.getBlobClient(destBlobPath);
+    // Only copy if source exists and dest does not
+    const sourceExists = await sourceBlobClient.exists();
+    if (!sourceExists) {
+      return res.status(404).json({ message: 'Source file does not exist in Azure storage.' });
+    }
+    const destExists = await destBlobClient.exists();
+    if (!destExists) {
+      // Start copy
+      const copyPoller = await destBlobClient.beginCopyFromURL(sourceBlobClient.url);
+      await copyPoller.pollUntilDone();
+    }
+    // Optionally, delete the temp blob after copy (uncomment if desired)
+    // await sourceBlobClient.delete();
     // Generate new URL with real client ID
-    const newUrl = await storageService.generateSecureUrl(realClientId, documentType, filename);
-    
+    const newUrl = destBlobClient.url;
     // Update the client record in the database
     const { Client } = await import('../models/Client');
     const updateData = { [documentType]: newUrl };
     await Client.update(realClientId, updateData);
-    
-    console.log(`Successfully updated ${documentType} URL for client ${realClientId}`);
-    
     res.json({
       message: 'Document URL updated successfully',
       newUrl: newUrl
