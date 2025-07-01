@@ -699,6 +699,13 @@ router.get('/types', (req: Request, res: Response) => {
 router.post('/update-client-urls', authenticate, async (req: Request, res: Response) => {
   try {
     const { tempClientId, realClientId, documentType, filename } = req.body;
+    console.log('--- /documents/update-client-urls called ---');
+    console.log('Request body:', req.body);
+    console.log('Environment:', {
+      AZURE_STORAGE_CONNECTION_STRING: process.env.AZURE_STORAGE_CONNECTION_STRING ? 'SET' : 'MISSING',
+      AZURE_STORAGE_CONTAINER_NAME: process.env.AZURE_STORAGE_CONTAINER_NAME,
+      NODE_ENV: process.env.NODE_ENV
+    });
     if (!tempClientId || !realClientId || !documentType || !filename) {
       return res.status(400).json({ 
         message: 'tempClientId, realClientId, documentType, and filename are required' 
@@ -713,30 +720,40 @@ router.post('/update-client-urls', authenticate, async (req: Request, res: Respo
     const { BlobServiceClient } = require('@azure/storage-blob');
     const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
     const containerName = process.env.AZURE_STORAGE_CONTAINER_NAME || 'customer-documents';
+    console.log('BlobServiceClient connectionString:', connectionString ? 'SET' : 'MISSING');
+    console.log('Container name:', containerName);
     const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
     const containerClient = blobServiceClient.getContainerClient(containerName);
     const sourceBlobPath = `${tempClientId}/${documentType}/${filename}`;
     const destBlobPath = `${realClientId}/${documentType}/${filename}`;
+    console.log('Source blob path:', sourceBlobPath);
+    console.log('Destination blob path:', destBlobPath);
     const sourceBlobClient = containerClient.getBlobClient(sourceBlobPath);
     const destBlobClient = containerClient.getBlobClient(destBlobPath);
     // Only copy if source exists and dest does not
     const sourceExists = await sourceBlobClient.exists();
+    console.log('Source exists:', sourceExists);
     if (!sourceExists) {
       return res.status(404).json({ message: 'Source file does not exist in Azure storage.' });
     }
     const destExists = await destBlobClient.exists();
+    console.log('Destination exists:', destExists);
     if (!destExists) {
       // Start copy
+      console.log('Starting copy from source to destination...');
       const copyPoller = await destBlobClient.beginCopyFromURL(sourceBlobClient.url);
       await copyPoller.pollUntilDone();
+      console.log('Copy completed.');
     }
     // Optionally, delete the temp blob after copy (uncomment if desired)
     // await sourceBlobClient.delete();
     // Generate new URL with real client ID
     const newUrl = destBlobClient.url;
+    console.log('New document URL:', newUrl);
     // Update the client record in the database
     const { Client } = await import('../models/Client');
     const updateData = { [documentType]: newUrl };
+    console.log('Updating client in DB:', realClientId, updateData);
     await Client.update(realClientId, updateData);
     res.json({
       message: 'Document URL updated successfully',
@@ -744,9 +761,18 @@ router.post('/update-client-urls', authenticate, async (req: Request, res: Respo
     });
   } catch (error: any) {
     console.error('Error updating document URL:', error);
+    if (error && error.stack) {
+      console.error('Error stack:', error.stack);
+    }
     res.status(500).json({ 
       message: 'Failed to update document URL', 
-      details: error.message 
+      details: error.message,
+      stack: error.stack,
+      env: {
+        AZURE_STORAGE_CONNECTION_STRING: process.env.AZURE_STORAGE_CONNECTION_STRING ? 'SET' : 'MISSING',
+        AZURE_STORAGE_CONTAINER_NAME: process.env.AZURE_STORAGE_CONTAINER_NAME,
+        NODE_ENV: process.env.NODE_ENV
+      }
     });
   }
 });
