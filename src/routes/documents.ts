@@ -707,9 +707,11 @@ router.post('/update-client-urls', authenticate, async (req: Request, res: Respo
       NODE_ENV: process.env.NODE_ENV
     });
     // Fix: Strip uploads/ prefix if present in tempClientId
+    let triedUploadsPrefix = false;
     if (tempClientId.startsWith('uploads/')) {
       console.warn(`[update-client-urls] tempClientId had uploads/ prefix, stripping:`, tempClientId);
       tempClientId = tempClientId.replace(/^uploads\//, '');
+      triedUploadsPrefix = true;
     }
     if (!tempClientId || !realClientId || !documentType || !filename) {
       return res.status(400).json({ 
@@ -729,17 +731,27 @@ router.post('/update-client-urls', authenticate, async (req: Request, res: Respo
     console.log('Container name:', containerName);
     const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
     const containerClient = blobServiceClient.getContainerClient(containerName);
-    const sourceBlobPath = `${tempClientId}/${documentType}/${filename}`;
+    let sourceBlobPath = `${tempClientId}/${documentType}/${filename}`;
     const destBlobPath = `${realClientId}/${documentType}/${filename}`;
     console.log('Source blob path:', sourceBlobPath);
     console.log('Destination blob path:', destBlobPath);
-    const sourceBlobClient = containerClient.getBlobClient(sourceBlobPath);
+    let sourceBlobClient = containerClient.getBlobClient(sourceBlobPath);
     const destBlobClient = containerClient.getBlobClient(destBlobPath);
     // Only copy if source exists and dest does not
-    const sourceExists = await sourceBlobClient.exists();
+    let sourceExists = await sourceBlobClient.exists();
     console.log('Source exists:', sourceExists);
+    // Fallback: if not found, try stripping uploads/ prefix if not already tried
+    if (!sourceExists && !triedUploadsPrefix && req.body.tempClientId.startsWith('uploads/')) {
+      const fallbackTempClientId = req.body.tempClientId.replace(/^uploads\//, '');
+      const fallbackSourceBlobPath = `${fallbackTempClientId}/${documentType}/${filename}`;
+      console.warn(`[update-client-urls] Fallback: trying without uploads/ prefix:`, fallbackSourceBlobPath);
+      sourceBlobClient = containerClient.getBlobClient(fallbackSourceBlobPath);
+      sourceExists = await sourceBlobClient.exists();
+      console.log('Fallback source exists:', sourceExists);
+      sourceBlobPath = fallbackSourceBlobPath;
+    }
     if (!sourceExists) {
-      return res.status(404).json({ message: 'Source file does not exist in Azure storage.' });
+      return res.status(404).json({ message: 'Source file does not exist in Azure storage.', tried: [sourceBlobPath] });
     }
     const destExists = await destBlobClient.exists();
     console.log('Destination exists:', destExists);
