@@ -698,7 +698,7 @@ router.get('/types', (req: Request, res: Response) => {
  */
 router.post('/update-client-urls', authenticate, async (req: Request, res: Response) => {
   try {
-    const { tempClientId, realClientId, documentType, filename } = req.body;
+    let { tempClientId, realClientId, documentType, filename } = req.body;
     console.log('--- /documents/update-client-urls called ---');
     console.log('Request body:', req.body);
     console.log('Environment:', {
@@ -706,6 +706,11 @@ router.post('/update-client-urls', authenticate, async (req: Request, res: Respo
       AZURE_STORAGE_CONTAINER_NAME: process.env.AZURE_STORAGE_CONTAINER_NAME,
       NODE_ENV: process.env.NODE_ENV
     });
+    // Fix: Strip uploads/ prefix if present in tempClientId
+    if (tempClientId.startsWith('uploads/')) {
+      console.warn(`[update-client-urls] tempClientId had uploads/ prefix, stripping:`, tempClientId);
+      tempClientId = tempClientId.replace(/^uploads\//, '');
+    }
     if (!tempClientId || !realClientId || !documentType || !filename) {
       return res.status(400).json({ 
         message: 'tempClientId, realClientId, documentType, and filename are required' 
