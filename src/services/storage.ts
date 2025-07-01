@@ -530,6 +530,28 @@ export class BlobStorageService {
     
     return this.blobServiceClient.getContainerClient(this.containerName);
   }
+
+  /**
+   * List all files for a client and document type
+   */
+  async listFiles(clientId: string, documentType: string): Promise<string[]> {
+    const blobPath = `${clientId}/${documentType}`;
+    if (this.isLocalStorage) {
+      const dirPath = path.join(this.localStoragePath, clientId, documentType);
+      if (!fs.existsSync(dirPath)) return [];
+      return fs.readdirSync(dirPath);
+    } else {
+      if (!this.blobServiceClient) throw new Error('Blob service client is not initialized');
+      const containerClient = this.blobServiceClient.getContainerClient(this.containerName);
+      const fileNames: string[] = [];
+      for await (const blob of containerClient.listBlobsFlat({ prefix: blobPath + '/' })) {
+        // Only return the filename, not the full path
+        const parts = blob.name.split('/');
+        fileNames.push(parts[parts.length - 1]);
+      }
+      return fileNames;
+    }
+  }
 }
 
 const storageService = new BlobStorageService();

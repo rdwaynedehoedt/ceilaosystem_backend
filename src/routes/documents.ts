@@ -122,6 +122,25 @@ router.use((error: any, req: Request, res: Response, next: NextFunction) => {
 });
 
 /**
+ * @route GET /api/documents/list/:clientId/:documentType
+ * @desc List all files for a client and document type (debug endpoint)
+ * @access Private
+ */
+router.get('/list/:clientId/:documentType', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { clientId, documentType } = req.params;
+    if (!clientId || !documentType) {
+      return res.status(400).json({ message: 'Client ID and document type are required' });
+    }
+    const files = await storageService.listFiles(clientId, documentType);
+    res.json({ files });
+  } catch (error: any) {
+    console.error('Error listing files:', error);
+    res.status(500).json({ message: 'Error listing files', details: error.message });
+  }
+});
+
+/**
  * @route GET /api/documents/:clientId/:documentType/url
  * @desc Get a temporary URL for accessing a document
  * @access Private
@@ -130,58 +149,38 @@ router.get('/:clientId/:documentType/url', authenticate, async (req: Request, re
   try {
     const { clientId, documentType } = req.params;
     const { blobUrl } = req.query;
-    
     if (!blobUrl || typeof blobUrl !== 'string') {
       return res.status(400).json({ message: 'Blob URL is required' });
     }
-    
-    console.log('Generate secure URL request for:', blobUrl);
-    
-    // Extract filename from the blob URL
     let fileName = '';
-    
     if (blobUrl.startsWith('http')) {
-      // Handle Azure Blob Storage URL
-      // Format: https://{account}.blob.core.windows.net/{container}/{clientId}/{documentType}/{filename}?{SAS}
-      try {
-        // Remove query parameters first
-        const urlWithoutParams = blobUrl.split('?')[0];
-        
-        // Get the last segment which should be the filename
-        const pathSegments = urlWithoutParams.split('/');
-        fileName = pathSegments[pathSegments.length - 1];
-        
-        console.log('Extracted filename from Azure URL:', fileName);
-      } catch (error) {
-        console.error('Error parsing Azure URL:', error);
-        return res.status(400).json({ message: 'Failed to parse blob URL' });
-      }
+      const urlWithoutParams = blobUrl.split('?')[0];
+      const pathSegments = urlWithoutParams.split('/');
+      fileName = pathSegments[pathSegments.length - 1];
     } else {
-      // Handle local storage path
-      // Format: uploads/{clientId}/{documentType}/{filename}
       const pathSegments = blobUrl.split(/[\/\\]/);
       fileName = pathSegments[pathSegments.length - 1];
-      console.log('Extracted filename from local path:', fileName);
     }
-    
     if (!fileName) {
       return res.status(400).json({ message: 'Invalid blob URL, could not extract filename' });
     }
-    
-    // Generate a secure URL using the new method
-    const secureUrl = await storageService.generateSecureUrl(
-      clientId,
-      documentType,
-      fileName
-    );
-    
-    res.json({
-      sasUrl: secureUrl,
-      expiresIn: '5 minutes',
-    });
+    try {
+      const secureUrl = await storageService.generateSecureUrl(
+        clientId,
+        documentType,
+        fileName
+      );
+      res.json({
+        sasUrl: secureUrl,
+        expiresIn: '5 minutes',
+      });
+    } catch (error: any) {
+      const attemptedPath = `${clientId}/${documentType}/${fileName}`;
+      console.error(`Error generating secure URL for path: ${attemptedPath}`, error);
+      res.status(500).json({ message: `Error generating secure URL or finding file. Path tried: ${attemptedPath}`, details: error.message });
+    }
   } catch (error: any) {
-    console.error(`Error generating secure URL or finding file locally for clientId=${clientId}, documentType=${documentType}, fileName=${fileName}:`, error);
-    res.status(500).json({ message: 'Error generating secure URL or finding file locally', details: error.message });
+    res.status(500).json({ message: 'Unexpected error', details: error.message });
   }
 });
 
