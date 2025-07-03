@@ -5,6 +5,10 @@ import storageService from '../services/storage';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import path from 'path';
 import fs from 'fs';
+const { BlobServiceClient } = require('@azure/storage-blob');
+const AZURE_STORAGE_CONNECTION_STRING = process.env.AZURE_STORAGE_CONNECTION_STRING;
+const blobServiceClient = BlobServiceClient.fromConnectionString(AZURE_STORAGE_CONNECTION_STRING);
+const containerName = process.env.AZURE_STORAGE_CONTAINER_NAME || 'customer-documents';
 
 const router = express.Router();
 
@@ -628,6 +632,36 @@ router.get('/token/:clientId/:documentType/:filename', authenticate, (req: Reque
     url: publicUrl,
     expires: new Date(timestamp + 30 * 60 * 1000).toISOString() // 30 minutes
   });
+});
+
+router.post('/move-temp/:tempId/:realClientId', async (req, res) => {
+  const { tempId, realClientId } = req.params;
+  const documentTypes = [
+    'nic_proof', 'dob_proof', 'business_registration', 'svat_proof', 'vat_proof',
+    'coverage_proof', 'sum_insured_proof', 'policy_fee_invoice', 'vat_fee_debit_note', 'payment_receipt_proof'
+  ];
+  try {
+    const containerClient = blobServiceClient.getContainerClient(containerName);
+    for (const docType of documentTypes) {
+      const prefix = `${tempId}/${docType}/`;
+      for await (const blob of containerClient.listBlobsFlat({ prefix })) {
+        const oldBlobName = blob.name;
+        const fileName = oldBlobName.split('/').pop();
+        const newBlobName = `${realClientId}/${docType}/${fileName}`;
+        const oldBlobClient = containerClient.getBlobClient(oldBlobName);
+        const newBlobClient = containerClient.getBlobClient(newBlobName);
+        // Copy blob
+        await newBlobClient.beginCopyFromURL(oldBlobClient.url);
+        // Delete old blob
+        await oldBlobClient.delete();
+      }
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error moving blobs in Azure:', err);
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: 'Failed to move documents in Azure', details: errorMessage });
+  }
 });
 
 export default router; 
