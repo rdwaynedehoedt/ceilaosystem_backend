@@ -616,7 +616,7 @@ router.get('/token/:clientId/:documentType/:filename', authenticate, (req: Reque
   let baseUrl;
   if (isProduction) {
     // HARDCODED FIX: Always use the Choreo URL in production
-    baseUrl = 'https://606464b5-77c7-4bb1-a1b9-9d05cefa3519-dev.e1-us-east-azure.choreoapis.dev/ceilaosystem/bakcned/v1.0';
+    baseUrl = 'https://606464b5-77c7-4bb1-a1b9-9d05cefa3519-dev.e1-us-east-azure.choreoapis.dev/ceilaosystem/backend/v1.0';
     console.log(`Using hardcoded Choreo URL: ${baseUrl}`);
   } else {
     baseUrl = req.protocol + '://' + req.get('host');
