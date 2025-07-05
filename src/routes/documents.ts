@@ -51,7 +51,10 @@ router.post('/upload/:clientId/:documentType', authenticate, upload.single('file
     
     // Validate document type
     const validDocumentTypes = ['nic_proof', 'dob_proof', 'business_registration', 'svat_proof', 'vat_proof', 
-    'coverage_proof', 'sum_insured_proof', 'policy_fee_invoice', 'vat_fee_debit_note', 'payment_receipt_proof'];
+    'coverage_proof', 'sum_insured_proof', 'policy_fee_invoice', 'vat_fee_debit_note', 'payment_receipt_proof',
+    // New document types
+    'policyholder_doc', 'vehicle_number_doc', 'proposal_form_doc', 'quotation_doc', 
+    'cr_copy_doc', 'schedule_doc', 'invoice_debit_note_doc', 'payment_receipt_doc', 'nic_br_doc'];
     
     if (!validDocumentTypes.includes(documentType)) {
       return res.status(400).json({ message: `Invalid document type. Valid types are: ${validDocumentTypes.join(', ')}` });
@@ -628,6 +631,116 @@ router.get('/token/:clientId/:documentType/:filename', authenticate, (req: Reque
     url: publicUrl,
     expires: new Date(timestamp + 30 * 60 * 1000).toISOString() // 30 minutes
   });
+});
+
+/**
+ * @route POST /api/documents/migrate/new-client/:newClientId
+ * @desc Migrate documents from 'new-client' to the actual client ID
+ * @access Private
+ */
+router.post('/migrate/new-client/:newClientId', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const { newClientId } = req.params;
+    const { documentUrls } = req.body;
+    
+    if (!newClientId) {
+      return res.status(400).json({ message: 'New client ID is required' });
+    }
+    
+    if (!documentUrls || typeof documentUrls !== 'object') {
+      return res.status(400).json({ message: 'Document URLs object is required' });
+    }
+    
+    console.log(`Migrating documents to client ID ${newClientId}`);
+    console.log('Document URLs to migrate:', documentUrls);
+    
+    // Initialize storage service
+    const updatedUrls: Record<string, string> = {};
+    
+    // Process each document URL
+    for (const [documentKey, url] of Object.entries(documentUrls)) {
+      if (!url || typeof url !== 'string') {
+        continue; // Skip if not a valid URL
+      }
+      
+      // Check if this is a URL we should migrate (contains 'new-client' or 'temp-')
+      const shouldMigrate = url.includes('new-client') || url.includes('/temp-');
+      if (!shouldMigrate) {
+        continue;
+      }
+      
+      try {
+        console.log(`Processing document: ${documentKey} with URL: ${url}`);
+        
+        // Extract document type and filename from the URL
+        // URL format could be either:
+        // 1. https://...blob.core.windows.net/customer-documents/new-client/documentType/filename
+        // 2. https://...blob.core.windows.net/customer-documents/temp-123456789/documentType/filename
+        const urlParts = url.split('/');
+        
+        // Find the index of 'new-client' or the part that starts with 'temp-'
+        let oldClientIdIndex = urlParts.findIndex(part => 
+          part === 'new-client' || part.startsWith('temp-')
+        );
+        
+        if (oldClientIdIndex <= 0 || oldClientIdIndex >= urlParts.length - 1) {
+          console.error(`Invalid URL format for ${documentKey}: ${url}`);
+          continue;
+        }
+        
+        const documentType = urlParts[oldClientIdIndex + 1];
+        const filename = urlParts[oldClientIdIndex + 2]?.split('?')[0]; // Remove query params
+        
+        if (!documentType || !filename) {
+          console.error(`Could not extract document type or filename from URL: ${url}`);
+          continue;
+        }
+        
+        console.log(`Extracted: documentType=${documentType}, filename=${filename}`);
+        
+        // Download the file from the old location
+        console.log(`Downloading file from: ${url}`);
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          console.error(`Failed to download file: ${response.status} ${response.statusText}`);
+          continue;
+        }
+        
+        const fileBuffer = Buffer.from(await response.arrayBuffer());
+        const contentType = response.headers.get('content-type') || 'application/octet-stream';
+        
+        // Upload to the new location
+        console.log(`Uploading file to new location: ${newClientId}/${documentType}/${filename}`);
+        const uploadResult = await storageService.uploadFile(
+          newClientId,
+          documentType,
+          filename,
+          fileBuffer,
+          contentType
+        );
+        
+        // Store the new URL
+        updatedUrls[documentKey] = uploadResult.url;
+        console.log(`File migrated successfully. New URL: ${uploadResult.url}`);
+        
+        // Don't delete the original file yet - keep it as a backup
+        // We can add a cleanup job later if needed
+      } catch (error) {
+        console.error(`Error migrating document ${documentKey}:`, error);
+        // Continue with other documents even if one fails
+      }
+    }
+    
+    console.log('Document migration completed');
+    res.json({
+      message: 'Documents migrated successfully',
+      updatedUrls
+    });
+  } catch (error: any) {
+    console.error('Error in document migration:', error);
+    res.status(500).json({ message: error.message || 'Failed to migrate documents' });
+  }
 });
 
 export default router; 

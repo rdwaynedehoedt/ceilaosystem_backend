@@ -59,6 +59,9 @@ AZURE_SQL_USER=your-username
 AZURE_SQL_PASSWORD=your-password
 AZURE_SQL_PORT=1433
 
+# Schema Update Configuration
+ENABLE_AUTO_SCHEMA_UPDATES=true|false  # Set to 'false' to disable automatic schema updates on server start
+
 # Connection Pool Configuration
 DB_POOL_MAX=10
 DB_POOL_MIN=0
@@ -86,4 +89,18 @@ npm run build
 
 # Run in production mode
 npm start
+
+# Run database schema updates manually
+npm run update-schema
 ```
+
+## Database Schema Management
+
+The application automatically applies database schema updates when it starts (unless disabled with `ENABLE_AUTO_SCHEMA_UPDATES=false`). 
+
+To manually update the database schema:
+```bash
+npm run update-schema
+```
+
+All schema changes use conditional statements (`IF NOT EXISTS`) to ensure they only run when needed, making the process idempotent and safe to run multiple times.

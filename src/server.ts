@@ -17,6 +17,8 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 5000;
 const isProduction = process.env.NODE_ENV === 'production';
+// Configuration for auto schema updates (default to true if not specified)
+const enableAutoSchemaUpdates = process.env.ENABLE_AUTO_SCHEMA_UPDATES !== 'false';
 
 // Configure CORS
 const corsOptions = {
@@ -90,14 +92,18 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
     await db.ensureConnection();
     console.log('Database connection verified');
     
-    // Run schema updates to ensure all required columns exist
-    console.log('Running database schema updates...');
-    const schemaUpdateSuccess = await updateSchema();
-    
-    if (schemaUpdateSuccess) {
-      console.log('Database schema update completed successfully');
+    // Run schema updates only if enabled
+    if (enableAutoSchemaUpdates) {
+      console.log('Running database schema updates...');
+      const schemaUpdateSuccess = await updateSchema();
+      
+      if (schemaUpdateSuccess) {
+        console.log('Database schema update completed successfully');
+      } else {
+        console.warn('Database schema update failed, some features may not work correctly');
+      }
     } else {
-      console.warn('Database schema update failed, some features may not work correctly');
+      console.log('Automatic schema updates are disabled. Use npm run update-schema to update manually.');
     }
     
     // Start server
