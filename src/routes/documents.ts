@@ -1,13 +1,12 @@
 import express, { Request, Response } from 'express';
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
-import { BlobStorageService } from '../services/storage';
+import storageService from '../services/storage';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import path from 'path';
 import fs from 'fs';
 
 const router = express.Router();
-const storageService = new BlobStorageService();
 
 // Configure multer for memory storage (files will be stored in memory as Buffer objects)
 const storage = multer.memoryStorage();
@@ -617,7 +616,7 @@ router.get('/token/:clientId/:documentType/:filename', authenticate, (req: Reque
   let baseUrl;
   if (isProduction) {
     // HARDCODED FIX: Always use the Choreo URL in production
-    baseUrl = 'https://606464b5-77c7-4bb1-a1b9-9d05cefa3519-dev.e1-us-east-azure.choreoapis.dev/ceilaosystem/backend/v1.0';
+    baseUrl = 'https://606464b5-77c7-4bb1-a1b9-9d05cefa3519-dev.e1-us-east-azure.choreoapis.dev/ceilaosystem/bakcned/v1.0';
     console.log(`Using hardcoded Choreo URL: ${baseUrl}`);
   } else {
     baseUrl = req.protocol + '://' + req.get('host');
