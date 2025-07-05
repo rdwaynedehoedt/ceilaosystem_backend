@@ -395,23 +395,23 @@ router.get('/public/:token/:clientId/:documentType/:filename', async (req: Reque
     
     // Proxy the content from Azure
     const response = await fetch(sasUrl);
-    
-    if (!response.ok) {
+          
+          if (!response.ok) {
       throw new Error(`Failed to fetch blob: ${response.status} ${response.statusText}`);
     }
     
     // Set content type and cache headers
-    res.setHeader('Content-Type', contentType);
+            res.setHeader('Content-Type', contentType);
     res.setHeader('Cache-Control', 'public, max-age=300'); // 5 minutes
     
     // Stream the response
-    const blob = await response.blob();
-    const buffer = Buffer.from(await blob.arrayBuffer());
-    
+          const blob = await response.blob();
+          const buffer = Buffer.from(await blob.arrayBuffer());
+          
     console.log(`Successfully retrieved document from Azure, size: ${buffer.length} bytes`);
-    return res.send(buffer);
+          return res.send(buffer);
   } catch (error: any) {
-    console.error('Error serving document:', error);
+      console.error('Error serving document:', error);
     return res.status(500).json({ message: `Error serving document: ${error.message}` });
   }
 });
