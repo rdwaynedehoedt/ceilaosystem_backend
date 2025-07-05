@@ -4,20 +4,21 @@ This document explains the optimizations made to the Azure Blob Storage integrat
 
 ## Changes Made
 
-1. **Removed Local File Saving During Upload**
-   - Files are now uploaded directly to Azure Blob Storage without saving locally first
-   - Local storage is only used as a fallback if Azure upload fails
-   - This reduces disk I/O operations and eliminates redundant storage
+1. **Completely Removed Local Storage**
+   - All local file storage functionality has been removed
+   - Files are now stored exclusively in Azure Blob Storage
+   - No more fallbacks to local storage
+   - System now requires Azure Blob Storage to be properly configured
 
 2. **Improved Upload Performance**
    - Added parallel upload capability for files larger than 4MB
    - Implemented upload progress tracking
-   - Added better error handling and fallback mechanisms
+   - Enhanced error handling with clear error messages
 
-3. **Enhanced Document Retrieval**
-   - Modified document retrieval to prioritize Azure Blob Storage
-   - Only falls back to local storage if Azure retrieval fails
+3. **Streamlined Document Retrieval**
+   - Document retrieval now exclusively uses Azure Blob Storage
    - Improved content type detection and handling
+   - Better error messages when files aren't found
 
 4. **Migration Tool**
    - Created a migration script (`src/migrate-local-to-azure.ts`) to move existing local files to Azure
@@ -29,7 +30,7 @@ This document explains the optimizations made to the Azure Blob Storage integrat
 Two test scripts have been created to verify the changes:
 
 1. **Direct Upload Test** (`src/test-direct-upload.ts`)
-   - Tests direct upload to Azure without local saving
+   - Tests direct upload to Azure
    - Measures upload speed and performance
    - Verifies that files are not saved locally
 
@@ -40,8 +41,8 @@ Two test scripts have been created to verify the changes:
 
 ## Deployment Instructions
 
-1. **Update Environment Variables**
-   Make sure these environment variables are set in your production environment:
+1. **IMPORTANT: Update Environment Variables**
+   These environment variables are now REQUIRED in your production environment:
    ```
    AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=https;AccountName=youraccountname;AccountKey=youraccountkey;EndpointSuffix=core.windows.net
    AZURE_STORAGE_CONTAINER_NAME=customer-documents
@@ -52,7 +53,7 @@ Two test scripts have been created to verify the changes:
    - Restart the application to apply changes
 
 3. **Run Migration Script**
-   - After deploying, run the migration script to move existing local files to Azure:
+   - Before deployment, run the migration script to move existing local files to Azure:
    ```
    npx ts-node src/migrate-local-to-azure.ts
    ```
@@ -64,11 +65,12 @@ Two test scripts have been created to verify the changes:
 
 ## Troubleshooting
 
-If you encounter issues with the optimized Azure integration:
+If you encounter issues with the Azure integration:
 
 1. **Check Connection String**
    - Verify the Azure Storage connection string is correctly formatted
    - Make sure it starts with `DefaultEndpointsProtocol=https`
+   - The application will fail to start if this is not configured correctly
 
 2. **Check Container**
    - Verify the container exists in your Azure Storage account
@@ -76,19 +78,15 @@ If you encounter issues with the optimized Azure integration:
 
 3. **Check Logs**
    - Look for error messages related to Azure Blob Storage
-   - Check for "falling back to local storage" messages which indicate Azure upload failures
-
-4. **Revert to Local Storage**
-   - In an emergency, you can temporarily disable Azure by removing the connection string
-   - This will cause the system to use local storage exclusively
+   - The application will throw specific errors if Azure is not configured correctly
 
 ## Performance Expectations
 
 With these optimizations, you should see:
 
 - Upload speeds 30-50% faster than before
-- Reduced disk usage on your server
+- Reduced disk usage on your server (no more local file storage)
 - More reliable document retrieval
-- Better error handling and recovery
+- Better error handling with clear error messages
 
 If you don't see these improvements, please check your network connection between your server and Azure, as latency can impact performance. 

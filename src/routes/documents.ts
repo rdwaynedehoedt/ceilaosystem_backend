@@ -211,48 +211,11 @@ router.get('/secure/:clientId/:documentType/:filename', authenticate, async (req
   try {
     const { clientId, documentType, filename } = req.params;
     
-    console.log(`[${new Date().toISOString()}] Secure document request from ${req.ip} for: ${clientId}/${documentType}/${filename}`);
-    console.log('User info:', req.user ? { userId: req.user.userId, role: req.user.role } : 'No user info');
+    console.log(`[${new Date().toISOString()}] Secure document request for: ${clientId}/${documentType}/${filename}`);
     
+    // Get a secure URL from the storage service
     try {
-      // Generate a secure URL for the document
-      console.log(`Generating secure URL for: ${clientId}/${documentType}/${filename}`);
-      const url = await storageService.generateSecureUrl(
-        clientId,
-        documentType,
-        filename,
-        15 * 60 // 15 minutes in seconds - longer to prevent timing issues
-      );
-      
-      console.log(`Generated URL: ${url.includes('?') ? url.substring(0, url.indexOf('?') + 10) + '...' : url}`);
-      
-      // Check if this is a local file path (doesn't start with http)
-      if (!url.startsWith('http')) {
-        console.log('Serving local file:', url);
-        
-        // Check if file exists
-        if (!fs.existsSync(url)) {
-          console.error(`Local file not found: ${url}`);
-          return res.status(404).json({ message: 'Document not found' });
-        }
-        
-        // Determine content type based on file extension
-        const ext = path.extname(url).toLowerCase();
-        let contentType = 'application/octet-stream'; // Default
-        
-        if (ext === '.pdf') contentType = 'application/pdf';
-        else if (ext === '.png') contentType = 'image/png';
-        else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
-        else if (ext === '.gif') contentType = 'image/gif';
-        
-        // Set content type and cache headers
-        res.setHeader('Content-Type', contentType);
-        res.setHeader('Cache-Control', 'public, max-age=300'); // Cache for 5 minutes
-        res.setHeader('Access-Control-Allow-Origin', '*'); // Allow any origin to access
-        
-        // Stream the file
-        return res.sendFile(path.resolve(url));
-      }
+      const url = await storageService.generateSecureUrl(clientId, documentType, filename);
       
       // For Azure storage URLs, proxy the content
       console.log(`Proxying content from Azure URL: ${url.substring(0, url.indexOf('?') + 10 || url.length)}...`);
@@ -364,108 +327,66 @@ router.get('/public/:token/:clientId/:documentType/:filename', async (req: Reque
     
     console.log(`[${new Date().toISOString()}] Public document request for: ${clientId}/${documentType}/${filename}`);
     
-    // First try to get the file from Azure Blob Storage
-    try {
-      if (process.env.AZURE_STORAGE_CONNECTION_STRING) {
-        console.log('Attempting to retrieve document from Azure Blob Storage');
-        
-        // Create a blob service client
-        const blobServiceClient = BlobServiceClient.fromConnectionString(
-          process.env.AZURE_STORAGE_CONNECTION_STRING
-        );
-        
-        // Get a container client
-        const containerName = process.env.AZURE_STORAGE_CONTAINER_NAME || 'customer-documents';
-        const containerClient = blobServiceClient.getContainerClient(containerName);
-        
-        // Get a blob client
-        const blobPath = `${clientId}/${documentType}/${filename}`;
-        const blobClient = containerClient.getBlobClient(blobPath);
-        
-        // Check if the blob exists
-        const exists = await blobClient.exists();
-        
-        if (exists) {
-          console.log('Document found in Azure Blob Storage');
-          
-          // Generate a SAS URL with short expiry
-          const sasOptions = {
-            expiresOn: new Date(new Date().valueOf() + 5 * 60 * 1000), // 5 minutes
-            permissions: BlobSASPermissions.parse("r"), // Read-only permission
-            contentDisposition: 'inline'
-          };
-          
-          const sasUrl = await blobClient.generateSasUrl(sasOptions);
-          
-          // Get content type from blob properties
-          const properties = await blobClient.getProperties();
-          const contentType = properties.contentType || 'application/octet-stream';
-          
-          // Proxy the content from Azure
-          const response = await fetch(sasUrl);
-          
-          if (!response.ok) {
-            throw new Error(`Failed to fetch blob: ${response.status} ${response.statusText}`);
-          }
-          
-          // Set content type and cache headers
-          res.setHeader('Content-Type', contentType);
-          res.setHeader('Cache-Control', 'public, max-age=300'); // 5 minutes
-          
-          // Stream the response
-          const blob = await response.blob();
-          const buffer = Buffer.from(await blob.arrayBuffer());
-          
-          console.log(`Successfully retrieved document from Azure, size: ${buffer.length} bytes`);
-          return res.send(buffer);
-        } else {
-          console.log('Document not found in Azure, falling back to local storage');
-        }
-      }
-    } catch (azureError) {
-      console.error('Error retrieving document from Azure:', azureError);
-      console.log('Falling back to local storage');
+    // Get the file from Azure Blob Storage
+    if (!process.env.AZURE_STORAGE_CONNECTION_STRING) {
+      return res.status(500).json({ message: 'Azure Storage connection string not configured' });
     }
     
-    // Fallback to local storage if Azure retrieval failed
-    const localPaths = [
-      path.join('uploads', clientId, documentType, filename),
-      path.join('./uploads', clientId, documentType, filename),
-      path.join(__dirname, '..', '..', 'uploads', clientId, documentType, filename),
-      path.join('/workspace/uploads', clientId, documentType, filename)
-    ];
-        
-    console.log('Checking possible local paths:', localPaths);
+    console.log('Retrieving document from Azure Blob Storage');
     
-    // Try each possible local path
-    for (const localPath of localPaths) {
-      if (fs.existsSync(localPath)) {
-        console.log(`File found at local path: ${localPath}`);
-        
-        // Determine content type based on file extension
-        const ext = path.extname(localPath).toLowerCase();
-        let contentType = 'application/octet-stream'; // Default
-        
-        if (ext === '.pdf') contentType = 'application/pdf';
-        else if (ext === '.png') contentType = 'image/png';
-        else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
-        else if (ext === '.gif') contentType = 'image/gif';
-        
-        // Set content type and cache headers
-        res.setHeader('Content-Type', contentType);
-        res.setHeader('Cache-Control', 'public, max-age=300'); // Cache for 5 minutes
-        res.setHeader('Access-Control-Allow-Origin', '*'); // Allow any origin to access
-        
-        console.log(`Serving local file with content-type: ${contentType}`);
-        
-        // Stream the file
-        return res.sendFile(path.resolve(localPath));
-      }
+    // Create a blob service client
+    const blobServiceClient = BlobServiceClient.fromConnectionString(
+      process.env.AZURE_STORAGE_CONNECTION_STRING
+    );
+    
+    // Get a container client
+    const containerName = process.env.AZURE_STORAGE_CONTAINER_NAME || 'customer-documents';
+    const containerClient = blobServiceClient.getContainerClient(containerName);
+    
+    // Get a blob client
+    const blobPath = `${clientId}/${documentType}/${filename}`;
+    const blobClient = containerClient.getBlobClient(blobPath);
+    
+    // Check if the blob exists
+    const exists = await blobClient.exists();
+    
+    if (!exists) {
+      console.error(`Document not found in Azure: ${blobPath}`);
+      return res.status(404).json({ message: 'Document not found' });
     }
     
-    // If we got here, the file wasn't found in Azure or locally
-    console.error(`Document not found: ${clientId}/${documentType}/${filename}`);
-    return res.status(404).json({ message: 'Document not found' });
+    console.log('Document found in Azure Blob Storage');
+    
+    // Generate a SAS URL with short expiry
+    const sasOptions = {
+      expiresOn: new Date(new Date().valueOf() + 5 * 60 * 1000), // 5 minutes
+      permissions: BlobSASPermissions.parse("r"), // Read-only permission
+      contentDisposition: 'inline'
+    };
+    
+    const sasUrl = await blobClient.generateSasUrl(sasOptions);
+    
+    // Get content type from blob properties
+    const properties = await blobClient.getProperties();
+    const contentType = properties.contentType || 'application/octet-stream';
+    
+    // Proxy the content from Azure
+    const response = await fetch(sasUrl);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch blob: ${response.status} ${response.statusText}`);
+    }
+    
+    // Set content type and cache headers
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=300'); // 5 minutes
+    
+    // Stream the response
+    const blob = await response.blob();
+    const buffer = Buffer.from(await blob.arrayBuffer());
+    
+    console.log(`Successfully retrieved document from Azure, size: ${buffer.length} bytes`);
+    return res.send(buffer);
   } catch (error: any) {
     console.error('Error serving document:', error);
     return res.status(500).json({ message: `Error serving document: ${error.message}` });

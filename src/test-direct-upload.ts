@@ -23,60 +23,59 @@ async function testDirectUpload() {
     }
     
     const testFileName = `test-direct-upload-${Date.now()}.bin`;
-    const clientId = 'test-client';
-    const documentType = 'test-doc';
-    
     console.log(`Uploading ${testSizeMB}MB test file "${testFileName}" to Azure...`);
     
     // Measure upload time
     const startTime = Date.now();
     
-    // Use the storage service to upload the file
-    const result = await storageService.uploadFile(
-      clientId,
-      documentType,
+    // Upload the file to Azure
+    const uploadResult = await storageService.uploadFile(
+      'test-client',
+      'test-doc',
       testFileName,
       testBuffer,
       'application/octet-stream'
     );
     
+    // Calculate upload time and speed
     const endTime = Date.now();
-    const uploadTime = (endTime - startTime) / 1000; // seconds
-    const uploadSpeed = testSizeMB / uploadTime; // MB/s
+    const uploadTimeSeconds = (endTime - startTime) / 1000;
+    const uploadSpeedMBps = testSizeMB / uploadTimeSeconds;
     
-    console.log('Upload result:', result);
-    console.log(`File URL: ${result.url}`);
-    console.log(`File path: ${result.path}`);
-    console.log(`Upload time: ${uploadTime.toFixed(2)} seconds`);
-    console.log(`Upload speed: ${uploadSpeed.toFixed(2)} MB/s`);
+    console.log('Upload result:', uploadResult);
+    console.log('File URL:', uploadResult.url);
+    console.log('File path:', uploadResult.path);
+    console.log(`Upload time: ${uploadTimeSeconds.toFixed(2)} seconds`);
+    console.log(`Upload speed: ${uploadSpeedMBps.toFixed(2)} MB/s`);
     
     // Verify the file exists in Azure by generating a secure URL
     console.log('\nGenerating secure URL to verify file exists...');
     const secureUrl = await storageService.generateSecureUrl(
-      clientId,
-      documentType,
+      'test-client',
+      'test-doc',
       testFileName
     );
     
-    console.log(`Secure URL: ${secureUrl}`);
+    console.log('Secure URL:', secureUrl);
     console.log('Test completed successfully!');
     
-    // Check if the file was saved locally (it shouldn't be with our changes)
-    const localPath = path.join('./uploads', clientId, documentType, testFileName);
-    const localExists = fs.existsSync(localPath);
+    // Check if file was saved locally (should not be)
+    const localPath = path.join('./uploads', 'test-client', 'test-doc', testFileName);
+    const fileExistsLocally = fs.existsSync(localPath);
     
-    console.log(`\nChecking if file was saved locally: ${localExists ? 'YES (unexpected)' : 'NO (expected)'}`);
+    console.log(`\nChecking if file was saved locally: ${fileExistsLocally ? 'YES (unexpected!)' : 'NO (expected)'}`);
     
-    if (localExists) {
-      console.warn('WARNING: File was saved locally even though direct upload was intended');
+    if (fileExistsLocally) {
+      console.error('ERROR: File was saved locally even though local storage should be disabled!');
+      process.exit(1);
     } else {
       console.log('SUCCESS: File was not saved locally as expected');
     }
-    
   } catch (error) {
-    console.error('Test failed with error:', error);
+    console.error('Test failed:', error);
+    process.exit(1);
   }
 }
 
 // Run the test
-testDirectUpload().catch(console.error); 
+testDirectUpload(); 
