@@ -10,12 +10,26 @@ async function updateSchema() {
     // Get connection from pool
     const pool = await db.ensureConnection();
     
-    // Read and execute the schema update SQL
+    // Read the schema update SQL
     const schemaUpdatePath = path.join(__dirname, 'alter-clients.sql');
     const schemaUpdateSql = fs.readFileSync(schemaUpdatePath, 'utf8');
     
     console.log('Executing schema update SQL...');
-    await pool.request().batch(schemaUpdateSql);
+    
+    // Split the SQL by GO statements and execute each batch separately
+    const batches = schemaUpdateSql.split(/\r?\nGO\r?\n/);
+    
+    for (const batch of batches) {
+      if (batch.trim()) {
+        try {
+          await pool.request().query(batch);
+          console.log('Successfully executed batch');
+        } catch (err) {
+          console.error('Error executing batch:', err);
+          // Continue with other batches even if one fails
+        }
+      }
+    }
     
     // Add performance optimizations
     console.log('Applying performance optimizations...');
