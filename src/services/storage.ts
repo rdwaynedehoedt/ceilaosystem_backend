@@ -30,12 +30,12 @@ if (connectionString) {
 let blobServiceClient: BlobServiceClient | null = null;
 let containerClient: ContainerClient | null = null;
 
-try {
-  blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
-  containerClient = blobServiceClient.getContainerClient(containerName);
-  console.log('Azure Blob Storage client initialized');
-} catch (error) {
-  console.error('Failed to initialize Azure Blob Storage client:', error);
+  try {
+    blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
+    containerClient = blobServiceClient.getContainerClient(containerName);
+    console.log('Azure Blob Storage client initialized');
+  } catch (error) {
+    console.error('Failed to initialize Azure Blob Storage client:', error);
   console.log('Will attempt to use Azure storage but may fail');
 }
 
@@ -72,27 +72,27 @@ export async function uploadDocument(
     const fileName = `${uuidv4()}${extension}`;
     const filePath = `${customerId}/${documentType}/${fileName}`;
     
-    // Use Azure Blob Storage
-    await ensureContainer();
-    
-    if (!containerClient) {
-      throw new Error('Container client is not initialized');
-    }
-    
-    // Get a block blob client
-    const blockBlobClient = containerClient.getBlockBlobClient(filePath);
-    
-    // Upload the file
-    await blockBlobClient.upload(file.buffer, file.buffer.length, {
-      blobHTTPHeaders: {
-        blobContentType: file.mimetype,
-      },
-    });
-    
-    console.log(`File uploaded successfully to Azure: ${filePath}`);
-    
-    // Return the URL of the blob
-    return blockBlobClient.url;
+      // Use Azure Blob Storage
+      await ensureContainer();
+      
+      if (!containerClient) {
+        throw new Error('Container client is not initialized');
+      }
+      
+      // Get a block blob client
+      const blockBlobClient = containerClient.getBlockBlobClient(filePath);
+      
+      // Upload the file
+      await blockBlobClient.upload(file.buffer, file.buffer.length, {
+        blobHTTPHeaders: {
+          blobContentType: file.mimetype,
+        },
+      });
+      
+      console.log(`File uploaded successfully to Azure: ${filePath}`);
+      
+      // Return the URL of the blob
+      return blockBlobClient.url;
   } catch (error) {
     console.error('Error uploading file:', error);
     throw error;
@@ -107,25 +107,25 @@ export async function uploadDocument(
  */
 export async function generateSasUrl(blobUrl: string, expiryMinutes = 60): Promise<string> {
   try {
-    if (!containerClient) {
-      throw new Error('Container client is not initialized');
-    }
-    
-    // Extract the blob name from the URL
-    const url = new URL(blobUrl);
-    const blobPath = url.pathname.substring(url.pathname.indexOf(containerName) + containerName.length + 1);
-    
-    // Get a block blob client
-    const blockBlobClient = containerClient.getBlockBlobClient(blobPath);
-    
-    // Generate SAS token
-    const sasOptions = {
-      expiresOn: new Date(new Date().valueOf() + expiryMinutes * 60 * 1000),
-      permissions: BlobSASPermissions.parse('r'), // Read permission
-    };
-    
-    const sasToken = await blockBlobClient.generateSasUrl(sasOptions);
-    return sasToken;
+      if (!containerClient) {
+        throw new Error('Container client is not initialized');
+      }
+      
+      // Extract the blob name from the URL
+      const url = new URL(blobUrl);
+      const blobPath = url.pathname.substring(url.pathname.indexOf(containerName) + containerName.length + 1);
+      
+      // Get a block blob client
+      const blockBlobClient = containerClient.getBlockBlobClient(blobPath);
+      
+      // Generate SAS token
+      const sasOptions = {
+        expiresOn: new Date(new Date().valueOf() + expiryMinutes * 60 * 1000),
+        permissions: BlobSASPermissions.parse('r'), // Read permission
+      };
+      
+      const sasToken = await blockBlobClient.generateSasUrl(sasOptions);
+      return sasToken;
   } catch (error) {
     console.error('Error generating access URL:', error);
     throw error;
@@ -138,20 +138,20 @@ export async function generateSasUrl(blobUrl: string, expiryMinutes = 60): Promi
  */
 export async function deleteDocument(blobUrl: string): Promise<void> {
   try {
-    if (!containerClient) {
-      throw new Error('Container client is not initialized');
-    }
-    
-    // Extract the blob name from the URL
-    const url = new URL(blobUrl);
-    const blobPath = url.pathname.substring(url.pathname.indexOf(containerName) + containerName.length + 1);
-    
-    // Get a block blob client
-    const blockBlobClient = containerClient.getBlockBlobClient(blobPath);
-    
-    // Delete the blob
-    await blockBlobClient.delete();
-    console.log(`Blob deleted from Azure: ${blobPath}`);
+      if (!containerClient) {
+        throw new Error('Container client is not initialized');
+      }
+      
+      // Extract the blob name from the URL
+      const url = new URL(blobUrl);
+      const blobPath = url.pathname.substring(url.pathname.indexOf(containerName) + containerName.length + 1);
+      
+      // Get a block blob client
+      const blockBlobClient = containerClient.getBlockBlobClient(blobPath);
+      
+      // Delete the blob
+      await blockBlobClient.delete();
+      console.log(`Blob deleted from Azure: ${blobPath}`);
   } catch (error) {
     console.error('Error deleting file:', error);
     throw error;
@@ -187,13 +187,13 @@ export class BlobStorageService {
         this.isLocalStorage = true;
       }
     }
-    
+        
     // Create local storage directory if needed (always, for fallback)
-    if (!fs.existsSync(this.localStoragePath)) {
-      fs.mkdirSync(this.localStoragePath, { recursive: true });
-      console.log(`Created local storage directory at ${this.localStoragePath}`);
-    }
-  }
+        if (!fs.existsSync(this.localStoragePath)) {
+          fs.mkdirSync(this.localStoragePath, { recursive: true });
+          console.log(`Created local storage directory at ${this.localStoragePath}`);
+        }
+      }
 
   /**
    * Test the Azure Blob Storage connection
@@ -254,58 +254,58 @@ export class BlobStorageService {
     
     // Always save locally first as a backup
     try {
-      const dirPath = path.join(this.localStoragePath, clientId, documentType);
-      if (!fs.existsSync(dirPath)) {
-        fs.mkdirSync(dirPath, { recursive: true });
-      }
-      
-      const fullPath = path.join(dirPath, fileName);
-      fs.writeFileSync(fullPath, fileContent);
+        const dirPath = path.join(this.localStoragePath, clientId, documentType);
+        if (!fs.existsSync(dirPath)) {
+          fs.mkdirSync(dirPath, { recursive: true });
+        }
+        
+        const fullPath = path.join(dirPath, fileName);
+        fs.writeFileSync(fullPath, fileContent);
       console.log(`File saved locally: ${fullPath}`);
     } catch (localError) {
       console.error('Error saving file locally:', localError);
       // Continue anyway to try Azure upload
     }
-    
+        
     // If we're in local storage mode or Azure client failed to initialize, return the local path
     if (this.isLocalStorage || !this.blobServiceClient) {
       console.log(`Using local storage for ${blobPath}`);
-      
+        
       // Return a URL format that matches Azure for consistency
       const baseUrl = 'https://insurancedocuments.blob.core.windows.net';
-      return {
+        return {
         url: `${baseUrl}/${this.containerName}/${blobPath}`,
-        path: blobPath
-      };
+          path: blobPath
+        };
     }
     
     // Try to upload to Azure
     try {
       console.log(`Attempting to upload to Azure: ${blobPath}`);
       
-      // Ensure container exists
-      await this.ensureContainer();
-      
-      // Get a container client
-      const containerClient = this.blobServiceClient.getContainerClient(this.containerName);
-      
-      // Get a block blob client
-      const blockBlobClient = containerClient.getBlockBlobClient(blobPath);
-      
-      // Upload the file
-      await blockBlobClient.upload(fileContent, fileContent.length, {
-        blobHTTPHeaders: {
-          blobContentType: contentType
-        }
-      });
-      
-      console.log(`File uploaded successfully to Azure: ${blobPath}`);
-      
-      // Return the blob URL and path (without generating SAS - we'll generate that on demand)
-      return {
-        url: blockBlobClient.url,
-        path: blobPath
-      };
+        // Ensure container exists
+        await this.ensureContainer();
+
+        // Get a container client
+        const containerClient = this.blobServiceClient.getContainerClient(this.containerName);
+        
+        // Get a block blob client
+        const blockBlobClient = containerClient.getBlockBlobClient(blobPath);
+        
+        // Upload the file
+        await blockBlobClient.upload(fileContent, fileContent.length, {
+          blobHTTPHeaders: {
+            blobContentType: contentType
+          }
+        });
+        
+        console.log(`File uploaded successfully to Azure: ${blobPath}`);
+        
+        // Return the blob URL and path (without generating SAS - we'll generate that on demand)
+        return {
+          url: blockBlobClient.url,
+          path: blobPath
+        };
     } catch (error) {
       console.error('Error uploading file to Azure:', error);
       console.log('Falling back to local storage URL format');
@@ -460,14 +460,14 @@ export class BlobStorageService {
       // Try to delete from Azure if client is available
       if (!this.isLocalStorage && this.blobServiceClient) {
         try {
-          // Get a container client
-          const containerClient = this.blobServiceClient.getContainerClient(this.containerName);
-          
-          // Get a blob client
-          const blobClient = containerClient.getBlobClient(blobPath);
-          
-          // Check if blob exists before attempting to delete
-          const exists = await blobClient.exists();
+        // Get a container client
+        const containerClient = this.blobServiceClient.getContainerClient(this.containerName);
+        
+        // Get a blob client
+        const blobClient = containerClient.getBlobClient(blobPath);
+        
+        // Check if blob exists before attempting to delete
+        const exists = await blobClient.exists();
           if (exists) {
             // Delete the blob
             await blobClient.delete();
