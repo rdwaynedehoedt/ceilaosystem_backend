@@ -365,37 +365,37 @@ router.get('/public/:token/:clientId/:documentType/:filename', async (req: Reque
     
     // Check if the file exists in local storage
     const localPaths = [
-      path.join('uploads', clientId, documentType, filename),
+        path.join('uploads', clientId, documentType, filename),
       path.join('./uploads', clientId, documentType, filename),
       path.join(__dirname, '..', '..', 'uploads', clientId, documentType, filename),
       path.join('/workspace/uploads', clientId, documentType, filename)
     ];
-    
+        
     console.log('Checking possible local paths:', localPaths);
-    
+            
     // Try to find the file locally first
     for (const localPath of localPaths) {
       if (fs.existsSync(localPath)) {
         console.log(`File found at local path: ${localPath}`);
-        
-        // Determine content type
+                  
+                  // Determine content type
         const ext = path.extname(localPath).toLowerCase();
-        let contentType = 'application/octet-stream';
-        if (ext === '.pdf') contentType = 'application/pdf';
-        else if (ext === '.png') contentType = 'image/png';
-        else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
-        else if (ext === '.gif') contentType = 'image/gif';
-        
-        // Set headers
-        res.setHeader('Content-Type', contentType);
-        res.setHeader('Cache-Control', 'public, max-age=300');
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        
+                  let contentType = 'application/octet-stream';
+                  if (ext === '.pdf') contentType = 'application/pdf';
+                  else if (ext === '.png') contentType = 'image/png';
+                  else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
+                  else if (ext === '.gif') contentType = 'image/gif';
+                  
+                  // Set headers
+                  res.setHeader('Content-Type', contentType);
+                  res.setHeader('Cache-Control', 'public, max-age=300');
+                  res.setHeader('Access-Control-Allow-Origin', '*');
+                  
         console.log(`Serving local file with content-type: ${contentType}`);
         return res.sendFile(path.resolve(localPath));
-      }
-    }
-    
+              }
+            }
+            
     // If not found locally, try Azure Blob Storage
     try {
       // Generate a secure URL for the blob
@@ -408,42 +408,42 @@ router.get('/public/:token/:clientId/:documentType/:filename', async (req: Reque
       console.error('Error accessing Azure blob:', azureError);
       
       // Try one more time with a different approach - check all files in the directory
-      try {
+        try {
         // Look for any file in the directory
         for (const localPath of localPaths.map(p => path.dirname(p))) {
           if (fs.existsSync(localPath)) {
             try {
               const files = fs.readdirSync(localPath);
-              if (files.length > 0) {
-                // Serve the first file found - might not be the exact one, but better than nothing
+            if (files.length > 0) {
+              // Serve the first file found - might not be the exact one, but better than nothing
                 const firstFile = path.join(localPath, files[0]);
-                console.log(`Emergency fallback: serving file from directory: ${firstFile}`);
-                
-                // Determine content type
-                const ext = path.extname(firstFile).toLowerCase();
-                let contentType = 'application/octet-stream';
-                if (ext === '.pdf') contentType = 'application/pdf';
-                else if (ext === '.png') contentType = 'image/png';
-                else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
-                else if (ext === '.gif') contentType = 'image/gif';
-                
-                // Set headers
-                res.setHeader('Content-Type', contentType);
-                res.setHeader('Cache-Control', 'public, max-age=300');
-                res.setHeader('Access-Control-Allow-Origin', '*');
-                
-                // Send the file
-                console.log(`Serving emergency fallback file with content-type: ${contentType}`);
-                return res.sendFile(path.resolve(firstFile));
+              console.log(`Emergency fallback: serving file from directory: ${firstFile}`);
+              
+              // Determine content type
+              const ext = path.extname(firstFile).toLowerCase();
+              let contentType = 'application/octet-stream';
+              if (ext === '.pdf') contentType = 'application/pdf';
+              else if (ext === '.png') contentType = 'image/png';
+              else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
+              else if (ext === '.gif') contentType = 'image/gif';
+              
+              // Set headers
+              res.setHeader('Content-Type', contentType);
+              res.setHeader('Cache-Control', 'public, max-age=300');
+              res.setHeader('Access-Control-Allow-Origin', '*');
+              
+              // Send the file
+              console.log(`Serving emergency fallback file with content-type: ${contentType}`);
+              return res.sendFile(path.resolve(firstFile));
               }
             } catch (fallbackError) {
               console.error('Fallback search failed:', fallbackError);
             }
+            }
           }
+        } catch (fallbackError) {
+          console.error('Fallback search failed:', fallbackError);
         }
-      } catch (fallbackError) {
-        console.error('Fallback search failed:', fallbackError);
-      }
     }
   } catch (error) {
     console.error('Error handling document request:', error);
