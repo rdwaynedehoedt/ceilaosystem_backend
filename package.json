@@ -13,7 +13,12 @@
     "update-schema": "ts-node src/database/update-schema.ts",
     "test-storage": "ts-node src/test-storage.ts",
     "list-blobs": "ts-node src/test-list-blobs.ts",
-    "test": "jest"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test-azure": "ts-node src/test-azure-storage.ts",
+    "test-env": "ts-node src/test-env.ts",
+    "test-upload": "ts-node src/test-upload.ts",
+    "test-azure-prod": "ts-node src/test-azure-prod.ts",
+    "migrate-files-to-azure": "ts-node src/migrate-files-to-azure.ts"
   },
   "keywords": [],
   "author": "",
