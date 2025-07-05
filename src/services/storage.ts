@@ -195,30 +195,53 @@ export class BlobStorageService {
   private isLocalStorage: boolean = false;
 
   constructor() {
+    // Check if we're in production environment
+    const isProduction = process.env.NODE_ENV === 'production';
+    
     // Check if Azure credentials are properly configured
     if (!this.connectionString || this.connectionString.trim() === '') {
-      console.log('Azure Blob Storage connection string not found, using local storage fallback');
-      this.isLocalStorage = true;
-      
-      // Create local storage directory if needed
-      if (!fs.existsSync(this.localStoragePath)) {
-        fs.mkdirSync(this.localStoragePath, { recursive: true });
-        console.log(`Created local storage directory at ${this.localStoragePath}`);
-      }
-    } else {
-      try {
-        // Create the BlobServiceClient from connection string
-        this.blobServiceClient = BlobServiceClient.fromConnectionString(this.connectionString);
-        console.log('Azure Blob Storage client initialized successfully');
-      } catch (error) {
-        console.error('Failed to initialize Azure Blob Storage client:', error);
-        console.log('Falling back to local storage');
+      if (isProduction) {
+        // In production, we should always have a connection string
+        console.error('CRITICAL ERROR: Azure Blob Storage connection string not found in production environment');
+        console.error('Documents will not be stored correctly. Please configure AZURE_STORAGE_CONNECTION_STRING');
+        // Still try to initialize with Azure - this will fail but it's better than silently using local storage
+        this.isLocalStorage = false;
+      } else {
+        // In development, we can fall back to local storage
+        console.log('Azure Blob Storage connection string not found, using local storage fallback');
         this.isLocalStorage = true;
         
         // Create local storage directory if needed
         if (!fs.existsSync(this.localStoragePath)) {
           fs.mkdirSync(this.localStoragePath, { recursive: true });
           console.log(`Created local storage directory at ${this.localStoragePath}`);
+        }
+      }
+    } else {
+      try {
+        // Create the BlobServiceClient from connection string
+        this.blobServiceClient = BlobServiceClient.fromConnectionString(this.connectionString);
+        console.log('Azure Blob Storage client initialized successfully');
+        this.isLocalStorage = false;
+      } catch (error) {
+        console.error('Failed to initialize Azure Blob Storage client:', error);
+        
+        if (isProduction) {
+          // In production, this is a critical error
+          console.error('CRITICAL ERROR: Failed to initialize Azure Blob Storage in production environment');
+          console.error('Documents will not be stored correctly');
+          // Still mark as Azure storage - this will fail but it's better than silently using local storage
+          this.isLocalStorage = false;
+        } else {
+          // In development, we can fall back to local storage
+          console.log('Falling back to local storage');
+          this.isLocalStorage = true;
+          
+          // Create local storage directory if needed
+          if (!fs.existsSync(this.localStoragePath)) {
+            fs.mkdirSync(this.localStoragePath, { recursive: true });
+            console.log(`Created local storage directory at ${this.localStoragePath}`);
+          }
         }
       }
     }
@@ -339,198 +362,112 @@ export class BlobStorageService {
           // This handles cases where we have a mix of Azure and local files
           const localPath = path.join(this.localStoragePath, clientId, documentType, fileName);
           if (fs.existsSync(localPath)) {
-            console.log(`File found in local storage instead: ${localPath}`);
+            console.log(`Returning local file path: ${localPath}`);
             return localPath;
           }
-          
-          // Also try to find the file with the same name in "uploads" directory
-          const uploadsPath = path.join('uploads', clientId, documentType, fileName);
-          if (fs.existsSync(uploadsPath)) {
-            console.log(`File found in uploads directory: ${uploadsPath}`);
-            return uploadsPath;
-          }
-          
-          // Look for the file in the entire uploads directory for this client and document type
-          const clientDocTypeDir = path.join('uploads', clientId, documentType);
-          if (fs.existsSync(clientDocTypeDir)) {
-            try {
-              const files = fs.readdirSync(clientDocTypeDir);
-              if (files.length > 0) {
-                // Return the first file found - might not be the exact one, but better than nothing
-                const firstFile = path.join(clientDocTypeDir, files[0]);
-                console.log(`File not found, but returning another file from the same directory: ${firstFile}`);
-                return firstFile;
-              }
-            } catch (readError) {
-              console.error(`Error reading directory: ${clientDocTypeDir}`, readError);
-            }
-          }
-          
-          throw new Error(`File not found: ${fileName}`);
         }
         
-        console.log(`Blob exists: ${blobPath}, generating SAS URL...`);
-        
-        // Generate a SAS URL directly from the blob client with more permissive settings
+        // Generate SAS token
         const sasOptions = {
           expiresOn: new Date(new Date().valueOf() + expirySeconds * 1000),
-          permissions: BlobSASPermissions.parse("r"), // Read-only permission
-          contentDisposition: 'inline',
-          protocol: 'https,http' as SASProtocol // Allow both protocols
+          permissions: BlobSASPermissions.parse('r'), // Read permission
         };
         
-        console.log(`SAS options: expires=${sasOptions.expiresOn.toISOString()}, permissions=${sasOptions.permissions}`);
-        
-        const sasUrl = await blobClient.generateSasUrl(sasOptions);
-        
-        // Log the full URL (without the SAS token part for security)
-        const sasUrlShort = sasUrl.substring(0, sasUrl.indexOf('?') + 10) + '...';
-        console.log(`Generated URL: ${sasUrlShort}`);
-        
-        // Return the blob URL with SAS token
-        return sasUrl;
+        const sasToken = await blobClient.generateSasUrl(sasOptions);
+        return sasToken;
       }
     } catch (error) {
       console.error('Error generating secure URL:', error);
-      throw new Error('Failed to generate secure access URL');
+      throw error;
     }
   }
 
   /**
-   * Delete a document from storage
+   * Delete a file from storage
+   * @param clientId The client ID
+   * @param documentType The document type
+   * @param fileName The file name
+   * @returns true if the file was deleted, false if it wasn't found
    */
-  async deleteFile(clientId: string, documentType: string, fileName: string): Promise<boolean> {
+  async deleteFile(
+    clientId: string,
+    documentType: string,
+    fileName: string
+  ): Promise<boolean> {
     try {
+      console.log(`Deleting file: ${clientId}/${documentType}/${fileName}`);
+      
       // Create the blob/file path
       const blobPath = `${clientId}/${documentType}/${fileName}`;
       
-      console.log(`Attempting to delete: ${blobPath}`);
-      
       if (this.isLocalStorage) {
-        // Delete local file
+        // For local storage, delete the file
         const fullPath = path.join(this.localStoragePath, clientId, documentType, fileName);
         
-        console.log(`Checking for local file at: ${fullPath}`);
-        
-        if (fs.existsSync(fullPath)) {
-          console.log(`File exists, deleting: ${fullPath}`);
-          fs.unlinkSync(fullPath);
-          console.log(`Local file deleted: ${fullPath}`);
-          return true;
-        } else {
-          console.log(`File not found at: ${fullPath}`);
-          
-          // Check if the filename contains path separators (which it shouldn't at this point)
-          if (fileName.includes('/') || fileName.includes('\\')) {
-            const cleanFileName = fileName.split(/[\/\\]/).pop() || '';
-            const altPath = path.join(this.localStoragePath, clientId, documentType, cleanFileName);
-            
-            console.log(`Checking alternative path: ${altPath}`);
-            
-            if (fs.existsSync(altPath)) {
-              console.log(`File exists at alternative path, deleting: ${altPath}`);
-              fs.unlinkSync(altPath);
-              console.log(`Local file deleted from alternative path: ${altPath}`);
-              return true;
-            }
-          }
-          
+        if (!fs.existsSync(fullPath)) {
+          console.log(`File not found at path: ${fullPath}`);
           return false;
         }
+        
+        fs.unlinkSync(fullPath);
+        console.log(`Local file deleted: ${fullPath}`);
+        return true;
       } else {
         if (!this.blobServiceClient) {
+          console.error('Blob service client is not initialized');
           throw new Error('Blob service client is not initialized');
         }
         
         // Get a container client
         const containerClient = this.blobServiceClient.getContainerClient(this.containerName);
         
-        // Get a blob client
-        const blobClient = containerClient.getBlobClient(blobPath);
+        // Get a block blob client
+        const blockBlobClient = containerClient.getBlockBlobClient(blobPath);
         
-        // Check if blob exists before attempting to delete
-        const exists = await blobClient.exists();
+        // Check if blob exists
+        const exists = await blockBlobClient.exists();
+        
         if (!exists) {
-          console.log(`Blob does not exist: ${blobPath}`);
+          console.log(`Blob not found: ${blobPath}`);
+          
+          // Try to check if the file exists in local storage as a fallback
+          const localPath = path.join(this.localStoragePath, clientId, documentType, fileName);
+          if (fs.existsSync(localPath)) {
+            fs.unlinkSync(localPath);
+            console.log(`Local file deleted as fallback: ${localPath}`);
+            return true;
+          }
+          
           return false;
         }
         
         // Delete the blob
-        await blobClient.delete();
+        await blockBlobClient.delete();
         console.log(`Blob deleted from Azure: ${blobPath}`);
-        
         return true;
       }
     } catch (error) {
       console.error('Error deleting file:', error);
-      throw new Error('Failed to delete file from storage');
+      throw error;
     }
   }
 
   /**
-   * Ensure the container exists, create it if it doesn't
+   * Ensure the container exists before any operation
    */
-  async ensureContainer(): Promise<void> {
-    try {
-      if (this.isLocalStorage) {
-        // No need to create container for local storage
-        return;
-      }
-      
-      if (!this.blobServiceClient) {
-        throw new Error('Blob service client is not initialized');
-      }
-      
-      const containerClient = this.blobServiceClient.getContainerClient(this.containerName);
-      await containerClient.createIfNotExists();
-      console.log(`Container '${this.containerName}' created or already exists.`);
-    } catch (error) {
-      console.error('Error ensuring container exists:', error);
-      throw new Error('Failed to ensure storage container exists');
-    }
-  }
-
-  /**
-   * Legacy method for backward compatibility 
-   */
-  async uploadDocument(
-    file: { buffer: Buffer; originalname: string; mimetype: string },
-    customerId: string,
-    documentType: string
-  ): Promise<string> {
-    const fileName = `${uuidv4()}${this.getFileExtension(file.originalname)}`;
-    const result = await this.uploadFile(
-      customerId,
-      documentType,
-      fileName,
-      file.buffer,
-      file.mimetype
-    );
-    return result.url;
-  }
-
-  /**
-   * Get file extension from filename
-   */
-  private getFileExtension(filename: string): string {
-    return filename.slice((filename.lastIndexOf('.') - 1 >>> 0) + 1);
-  }
-
-  /**
-   * Get a container client for the storage container
-   */
-  async getContainerClient(): Promise<ContainerClient> {
+  async ensureContainer() {
     if (this.isLocalStorage) {
-      throw new Error('Local storage mode is active, no container client available');
+      return; // No need to create container for local storage
     }
     
-    if (!this.blobServiceClient) {
-      throw new Error('Blob service client is not initialized');
+    try {
+      if (this.blobServiceClient) {
+        await this.blobServiceClient.getContainerClient(this.containerName).createIfNotExists();
+        console.log(`Container '${this.containerName}' created or already exists.`);
+      }
+    } catch (error) {
+      console.error(`Error creating container '${this.containerName}':`, error);
+      throw error;
     }
-    
-    return this.blobServiceClient.getContainerClient(this.containerName);
   }
 }
-
-const storageService = new BlobStorageService();
-export default storageService; 
