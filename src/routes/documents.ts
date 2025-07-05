@@ -1,13 +1,16 @@
 import express, { Request, Response } from 'express';
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
-import storageService from '../services/storage';
+import { BlobStorageService } from '../services/storage';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import path from 'path';
 import fs from 'fs';
 import { BlobServiceClient, BlobSASPermissions } from '@azure/storage-blob';
+import fetch from 'node-fetch';
+import { ImageOptimizer } from '../utils/imageOptimizer';
 
 const router = express.Router();
+const storageService = new BlobStorageService();
 
 // Configure multer for memory storage (files will be stored in memory as Buffer objects)
 const storage = multer.memoryStorage();
@@ -40,48 +43,68 @@ const upload = multer({
  */
 router.post('/upload/:clientId/:documentType', authenticate, upload.single('file'), async (req: AuthRequest, res: Response) => {
   try {
+    const { clientId, documentType } = req.params;
+    
     if (!req.file) {
       return res.status(400).json({ message: 'No file uploaded' });
     }
     
-    const { clientId, documentType } = req.params;
+    console.log(`[${new Date().toISOString()}] Document upload request from ${req.ip}`);
+    console.log(`Client ID: ${clientId}, Document Type: ${documentType}`);
+    console.log(`Original filename: ${req.file.originalname}, Size: ${(req.file.size / 1024).toFixed(2)}KB`);
     
-    if (!clientId || !documentType) {
-      return res.status(400).json({ message: 'Client ID and document type are required' });
+    // Start timing the upload process
+    const startTime = Date.now();
+    
+    // Check if the file is an image and optimize it if it is
+    let fileBuffer = req.file.buffer;
+    let fileMimetype = req.file.mimetype;
+    let fileExtension = path.extname(req.file.originalname);
+    
+    // Optimize images before upload
+    if (ImageOptimizer.isImage(req.file.mimetype)) {
+      console.log('Optimizing image before upload...');
+      const optimizationResult = await ImageOptimizer.optimizeImage(
+        req.file.buffer,
+        req.file.mimetype,
+        req.file.originalname
+      );
+      
+      fileBuffer = optimizationResult.buffer;
+      fileMimetype = optimizationResult.mimetype;
+      fileExtension = optimizationResult.extension;
+      
+      console.log(`Image optimized. Compression rate: ${optimizationResult.compressionRate.toFixed(2)}x`);
     }
     
-    // Validate document type
-    const validDocumentTypes = ['nic_proof', 'dob_proof', 'business_registration', 'svat_proof', 'vat_proof', 
-    'coverage_proof', 'sum_insured_proof', 'policy_fee_invoice', 'vat_fee_debit_note', 'payment_receipt_proof',
-    // New document types
-    'policyholder_doc', 'vehicle_number_doc', 'proposal_form_doc', 'quotation_doc', 
-    'cr_copy_doc', 'schedule_doc', 'invoice_debit_note_doc', 'payment_receipt_doc', 'nic_br_doc'];
+    // Generate a unique filename with the correct extension
+    const fileName = `${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 9)}${fileExtension}`;
     
-    if (!validDocumentTypes.includes(documentType)) {
-      return res.status(400).json({ message: `Invalid document type. Valid types are: ${validDocumentTypes.join(', ')}` });
-    }
-    
-    const file = req.file;
-    const fileExtension = path.extname(file.originalname);
-    const fileName = `${uuidv4()}${fileExtension}`;
-    
-    // Upload to Azure Blob Storage
+    // Upload the file to Azure Blob Storage
     const result = await storageService.uploadFile(
       clientId,
       documentType,
       fileName,
-      file.buffer,
-      file.mimetype
+      fileBuffer,
+      fileMimetype
     );
     
-    res.json({
+    // Calculate total processing time
+    const endTime = Date.now();
+    const processingTimeMs = endTime - startTime;
+    
+    console.log(`Document uploaded successfully. URL: ${result.url}`);
+    console.log(`Total processing time: ${processingTimeMs}ms`);
+    
+    return res.status(200).json({
       message: 'File uploaded successfully',
       url: result.url,
-      fileName: fileName
+      fileName: fileName,
+      processingTimeMs
     });
   } catch (error: any) {
     console.error('Error uploading document:', error);
-    res.status(500).json({ message: error.message || 'Failed to upload document' });
+    return res.status(500).json({ message: `Error uploading document: ${error.message}` });
   }
 });
 

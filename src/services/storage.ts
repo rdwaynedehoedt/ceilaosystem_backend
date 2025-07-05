@@ -158,10 +158,27 @@ export async function deleteDocument(blobUrl: string): Promise<void> {
   }
 }
 
+// Singleton instance for connection pooling
+let blobServiceClientInstance: BlobServiceClient | null = null;
+
 export class BlobStorageService {
-  private blobServiceClient: BlobServiceClient | null = null;
   private containerName: string = process.env.AZURE_STORAGE_CONTAINER_NAME || 'customer-documents';
   private connectionString: string = process.env.AZURE_STORAGE_CONNECTION_STRING || '';
+  private blobServiceClient: BlobServiceClient | null = null;
+  
+  // Connection pooling configuration
+  private static connectionOptions = {
+    keepAliveOptions: {
+      enable: true,
+      initialDelay: 5000, // 5 seconds
+      keepAliveTime: 30000 // 30 seconds
+    },
+    retryOptions: {
+      maxTries: 4,
+      tryTimeoutInMs: 60000, // 60 seconds
+      retryDelayInMs: 1000 // 1 second
+    }
+  };
 
   constructor() {
     console.log('Initializing BlobStorageService...');
@@ -172,8 +189,20 @@ export class BlobStorageService {
     
     try {
       console.log('Initializing Azure Blob Storage client...');
-      // Create the BlobServiceClient from connection string
-      this.blobServiceClient = BlobServiceClient.fromConnectionString(this.connectionString);
+      
+      // Use singleton pattern for connection pooling
+      if (!blobServiceClientInstance) {
+        // Create the BlobServiceClient from connection string with optimized options
+        blobServiceClientInstance = BlobServiceClient.fromConnectionString(
+          this.connectionString,
+          BlobStorageService.connectionOptions
+        );
+        console.log('Created new Azure Blob Storage client instance');
+      } else {
+        console.log('Reusing existing Azure Blob Storage client instance');
+      }
+      
+      this.blobServiceClient = blobServiceClientInstance;
       console.log('Azure Blob Storage client initialized successfully');
       
       // Test the connection immediately to verify it works
@@ -227,7 +256,7 @@ export class BlobStorageService {
   }
 
   /**
-   * Upload a file directly to Azure Blob Storage
+   * Upload a file directly to Azure Blob Storage with optimized parallel uploads
    */
   async uploadFile(
     clientId: string,
@@ -256,24 +285,40 @@ export class BlobStorageService {
       // Get a block blob client
       const blockBlobClient = containerClient.getBlockBlobClient(blobPath);
       
+      // Determine if we should use parallel uploads based on file size
+      const useParallelUpload = fileContent.length > 1024 * 1024; // > 1MB
+      const concurrency = this.calculateConcurrency(fileContent.length);
+      
       // Set upload options with optimized parameters
       const uploadOptions = {
         blobHTTPHeaders: {
           blobContentType: contentType
         },
-        // Use parallel upload for files larger than 4MB
-        concurrency: fileContent.length > 4 * 1024 * 1024 ? 4 : 1,
+        // Use parallel upload for larger files with dynamic concurrency
+        concurrency: concurrency,
+        maxSingleShotSize: 4 * 1024 * 1024, // 4MB
         onProgress: (progress: { loadedBytes: number }) => {
-          if (progress.loadedBytes % (1024 * 1024) === 0) {
+          if (progress.loadedBytes % (1024 * 1024) === 0 || progress.loadedBytes === fileContent.length) {
             console.log(`Upload progress for ${blobPath}: ${Math.round(progress.loadedBytes / fileContent.length * 100)}%`);
           }
         }
       };
       
+      console.log(`Using ${useParallelUpload ? 'parallel' : 'single'} upload with concurrency ${concurrency}`);
+      
+      // Start upload timer
+      const startTime = Date.now();
+      
       // Upload the file
       await blockBlobClient.upload(fileContent, fileContent.length, uploadOptions);
       
+      // Calculate upload speed
+      const endTime = Date.now();
+      const uploadTimeSeconds = (endTime - startTime) / 1000;
+      const uploadSpeedMBps = (fileContent.length / (1024 * 1024)) / uploadTimeSeconds;
+      
       console.log(`File uploaded successfully to Azure: ${blobPath}`);
+      console.log(`Upload time: ${uploadTimeSeconds.toFixed(2)}s, Speed: ${uploadSpeedMBps.toFixed(2)} MB/s`);
       
       // Return the blob URL and path
       return {
@@ -283,6 +328,28 @@ export class BlobStorageService {
     } catch (error: any) {
       console.error('Error uploading file to Azure:', error);
       throw new Error(`Failed to upload file to Azure: ${error.message}`);
+    }
+  }
+
+  /**
+   * Calculate optimal concurrency based on file size
+   */
+  private calculateConcurrency(fileSize: number): number {
+    if (fileSize < 1024 * 1024) {
+      // Less than 1MB
+      return 1;
+    } else if (fileSize < 5 * 1024 * 1024) {
+      // 1-5MB
+      return 2;
+    } else if (fileSize < 20 * 1024 * 1024) {
+      // 5-20MB
+      return 4;
+    } else if (fileSize < 50 * 1024 * 1024) {
+      // 20-50MB
+      return 8;
+    } else {
+      // > 50MB
+      return 16;
     }
   }
 
