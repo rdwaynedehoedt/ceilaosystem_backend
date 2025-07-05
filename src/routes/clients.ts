@@ -293,12 +293,20 @@ router.post('/import-csv', authenticate, authorize(['admin', 'manager']), upload
               'sum_insured', 'basic_premium', 'srcc_premium', 'tc_premium', 
               'net_premium', 'stamp_duty', 'admin_fees', 'road_safety_fee', 
               'policy_fee', 'vat_fee', 'total_invoice', 'commission_basic',
-              'commission_srcc', 'commission_tc'
+              'commission_srcc', 'commission_tc', 'policies'
             ];
             
             // Handle date fields
             const dateFields = [
               'policy_period_from', 'policy_period_to'
+            ];
+            
+            // Handle text fields for documents
+            const textFields = [
+              'policyholder_text', 'vehicle_number_text', 'proposal_form_text', 
+              'quotation_text', 'cr_copy_text', 'schedule_text', 
+              'invoice_debit_note_text', 'payment_receipt_text', 'nic_br_text',
+              'ceilao_ib_file_no', 'main_class', 'insurer'
             ];
             
             if (numericFields.includes(key) && data[key]) {
@@ -318,6 +326,9 @@ router.post('/import-csv', authenticate, authorize(['admin', 'manager']), upload
                 console.warn(`Error parsing date for ${key}:`, err);
                 (clientData as any)[key] = data[key]; // Keep original if parsing fails
               }
+            } else if (textFields.includes(key)) {
+              // Handle text fields for documents - ensure they're strings
+              (clientData as any)[key] = data[key] ? String(data[key]).trim() : '';
             } else {
               (clientData as any)[key] = data[key];
             }
