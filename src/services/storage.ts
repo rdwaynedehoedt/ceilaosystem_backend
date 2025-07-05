@@ -235,7 +235,7 @@ export class BlobStorageService {
     contentType: string
   ): Promise<{ url: string, path: string }> {
     try {
-      // Create a path for the blob/file: clientId/documentType/filename
+      // Create the blob/file path
       const blobPath = `${clientId}/${documentType}/${fileName}`;
       
       if (this.isLocalStorage) {
@@ -252,9 +252,14 @@ export class BlobStorageService {
         
         console.log(`File saved locally: ${fullPath}`);
         
-        // Return a local file path
+        // Return a URL format that matches Azure for consistency
+        // This ensures the frontend always gets a URL with the same format
+        const baseUrl = process.env.NODE_ENV === 'production' 
+          ? 'https://insurancedocuments.blob.core.windows.net'
+          : 'https://insurancedocuments.blob.core.windows.net';
+          
         return {
-          url: fullPath,
+          url: `${baseUrl}/${this.containerName}/${blobPath}`,
           path: blobPath
         };
       } else {
