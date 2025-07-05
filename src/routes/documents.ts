@@ -616,7 +616,7 @@ router.get('/token/:clientId/:documentType/:filename', authenticate, (req: Reque
   let baseUrl;
   if (isProduction) {
     // HARDCODED FIX: Always use the Choreo URL in production
-    baseUrl = 'https://606464b5-77c7-4bb1-a1b9-9d05cefa3519-dev.e1-us-east-azure.choreoapis.dev/ceilaosystem/backend/v1.0';
+    baseUrl = 'https://606464b5-77c7-4bb1-a1b9-9d05cefa3519-dev.e1-us-east-azure.choreoapis.dev/ceilaosystem/bakcned/v1.0';
     console.log(`Using hardcoded Choreo URL: ${baseUrl}`);
   } else {
     baseUrl = req.protocol + '://' + req.get('host');
@@ -690,6 +690,111 @@ router.post('/migrate/new-client/:newClientId', authenticate, async (req: AuthRe
         
         const documentType = urlParts[oldClientIdIndex + 1];
         const filename = urlParts[oldClientIdIndex + 2]?.split('?')[0]; // Remove query params
+        
+        if (!documentType || !filename) {
+          console.error(`Could not extract document type or filename from URL: ${url}`);
+          continue;
+        }
+        
+        console.log(`Extracted: documentType=${documentType}, filename=${filename}`);
+        
+        // Download the file from the old location
+        console.log(`Downloading file from: ${url}`);
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          console.error(`Failed to download file: ${response.status} ${response.statusText}`);
+          continue;
+        }
+        
+        const fileBuffer = Buffer.from(await response.arrayBuffer());
+        const contentType = response.headers.get('content-type') || 'application/octet-stream';
+        
+        // Upload to the new location
+        console.log(`Uploading file to new location: ${newClientId}/${documentType}/${filename}`);
+        const uploadResult = await storageService.uploadFile(
+          newClientId,
+          documentType,
+          filename,
+          fileBuffer,
+          contentType
+        );
+        
+        // Store the new URL
+        updatedUrls[documentKey] = uploadResult.url;
+        console.log(`File migrated successfully. New URL: ${uploadResult.url}`);
+        
+        // Don't delete the original file yet - keep it as a backup
+        // We can add a cleanup job later if needed
+      } catch (error) {
+        console.error(`Error migrating document ${documentKey}:`, error);
+        // Continue with other documents even if one fails
+      }
+    }
+    
+    console.log('Document migration completed');
+    res.json({
+      message: 'Documents migrated successfully',
+      updatedUrls
+    });
+  } catch (error: any) {
+    console.error('Error in document migration:', error);
+    res.status(500).json({ message: error.message || 'Failed to migrate documents' });
+  }
+});
+
+/**
+ * @route POST /api/documents/migrate/:tempId/:newClientId
+ * @desc Migrate documents from a specific temporary folder to the actual client ID
+ * @access Private
+ */
+router.post('/migrate/:tempId/:newClientId', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const { tempId, newClientId } = req.params;
+    const { documentUrls } = req.body;
+    
+    if (!tempId || !newClientId) {
+      return res.status(400).json({ message: 'Both temporary ID and new client ID are required' });
+    }
+    
+    if (!documentUrls || typeof documentUrls !== 'object') {
+      return res.status(400).json({ message: 'Document URLs object is required' });
+    }
+    
+    console.log(`Migrating documents from temp ID ${tempId} to client ID ${newClientId}`);
+    console.log('Document URLs to migrate:', documentUrls);
+    
+    // Initialize storage service
+    const updatedUrls: Record<string, string> = {};
+    
+    // Process each document URL
+    for (const [documentKey, url] of Object.entries(documentUrls)) {
+      if (!url || typeof url !== 'string') {
+        continue; // Skip if not a valid URL
+      }
+      
+      try {
+        console.log(`Processing document: ${documentKey} with URL: ${url}`);
+        
+        // Extract document type and filename from the URL
+        // URL format: https://...blob.core.windows.net/customer-documents/temp-123456789/documentType/filename
+        const urlParts = url.split('/');
+        
+        // Find the index of the part that matches our tempId
+        let tempIdIndex = urlParts.findIndex(part => part === tempId);
+        
+        // If not found directly, look for any temp- part (fallback)
+        if (tempIdIndex < 0) {
+          tempIdIndex = urlParts.findIndex(part => part.startsWith('temp-'));
+        }
+        
+        if (tempIdIndex <= 0 || tempIdIndex >= urlParts.length - 1) {
+          console.error(`Invalid URL format for ${documentKey}: ${url}`);
+          continue;
+        }
+        
+        const documentType = urlParts[tempIdIndex + 1];
+        const filename = urlParts[tempIdIndex + 2]?.split('?')[0]; // Remove query params
         
         if (!documentType || !filename) {
           console.error(`Could not extract document type or filename from URL: ${url}`);
