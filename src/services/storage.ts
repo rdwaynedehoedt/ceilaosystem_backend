@@ -188,12 +188,12 @@ export class BlobStorageService {
       }
     }
         
-    // Create local storage directory if needed (always, for fallback)
-        if (!fs.existsSync(this.localStoragePath)) {
-          fs.mkdirSync(this.localStoragePath, { recursive: true });
-          console.log(`Created local storage directory at ${this.localStoragePath}`);
-        }
-      }
+    // Create local storage directory if needed (only for fallback)
+    if (this.isLocalStorage && !fs.existsSync(this.localStoragePath)) {
+      fs.mkdirSync(this.localStoragePath, { recursive: true });
+      console.log(`Created local storage directory at ${this.localStoragePath}`);
+    }
+  }
 
   /**
    * Test the Azure Blob Storage connection
@@ -240,7 +240,7 @@ export class BlobStorageService {
   }
 
   /**
-   * Upload a file to Azure Blob Storage with improved security
+   * Upload a file to Azure Blob Storage with improved performance
    */
   async uploadFile(
     clientId: string,
@@ -252,8 +252,12 @@ export class BlobStorageService {
     // Create the blob/file path
     const blobPath = `${clientId}/${documentType}/${fileName}`;
     
-    // Always save locally first as a backup
-    try {
+    // If we're in local storage mode or Azure client failed to initialize, use local storage
+    if (this.isLocalStorage || !this.blobServiceClient) {
+      console.log(`Using local storage for ${blobPath}`);
+      
+      // Save locally since we're in local storage mode
+      try {
         const dirPath = path.join(this.localStoragePath, clientId, documentType);
         if (!fs.existsSync(dirPath)) {
           fs.mkdirSync(dirPath, { recursive: true });
@@ -261,54 +265,11 @@ export class BlobStorageService {
         
         const fullPath = path.join(dirPath, fileName);
         fs.writeFileSync(fullPath, fileContent);
-      console.log(`File saved locally: ${fullPath}`);
-    } catch (localError) {
-      console.error('Error saving file locally:', localError);
-      // Continue anyway to try Azure upload
-    }
-        
-    // If we're in local storage mode or Azure client failed to initialize, return the local path
-    if (this.isLocalStorage || !this.blobServiceClient) {
-      console.log(`Using local storage for ${blobPath}`);
-        
-      // Return a URL format that matches Azure for consistency
-      const baseUrl = 'https://insurancedocuments.blob.core.windows.net';
-        return {
-        url: `${baseUrl}/${this.containerName}/${blobPath}`,
-          path: blobPath
-        };
-    }
-    
-    // Try to upload to Azure
-    try {
-      console.log(`Attempting to upload to Azure: ${blobPath}`);
-      
-        // Ensure container exists
-        await this.ensureContainer();
-
-        // Get a container client
-        const containerClient = this.blobServiceClient.getContainerClient(this.containerName);
-        
-        // Get a block blob client
-        const blockBlobClient = containerClient.getBlockBlobClient(blobPath);
-        
-        // Upload the file
-        await blockBlobClient.upload(fileContent, fileContent.length, {
-          blobHTTPHeaders: {
-            blobContentType: contentType
-          }
-        });
-        
-        console.log(`File uploaded successfully to Azure: ${blobPath}`);
-        
-        // Return the blob URL and path (without generating SAS - we'll generate that on demand)
-        return {
-          url: blockBlobClient.url,
-          path: blobPath
-        };
-    } catch (error) {
-      console.error('Error uploading file to Azure:', error);
-      console.log('Falling back to local storage URL format');
+        console.log(`File saved locally: ${fullPath}`);
+      } catch (localError: any) {
+        console.error('Error saving file locally:', localError);
+        throw new Error(`Failed to save file locally: ${localError.message}`);
+      }
       
       // Return a URL format that matches Azure for consistency
       const baseUrl = 'https://insurancedocuments.blob.core.windows.net';
@@ -316,6 +277,70 @@ export class BlobStorageService {
         url: `${baseUrl}/${this.containerName}/${blobPath}`,
         path: blobPath
       };
+    }
+    
+    // Upload directly to Azure (no local saving)
+    try {
+      console.log(`Uploading directly to Azure: ${blobPath}`);
+      
+      // Ensure container exists
+      await this.ensureContainer();
+
+      // Get a container client
+      const containerClient = this.blobServiceClient.getContainerClient(this.containerName);
+      
+      // Get a block blob client
+      const blockBlobClient = containerClient.getBlockBlobClient(blobPath);
+      
+      // Set upload options with optimized parameters
+      const uploadOptions = {
+        blobHTTPHeaders: {
+          blobContentType: contentType
+        },
+        // Use parallel upload for files larger than 4MB
+        concurrency: fileContent.length > 4 * 1024 * 1024 ? 4 : 1,
+        onProgress: (progress: { loadedBytes: number }) => {
+          if (progress.loadedBytes % (1024 * 1024) === 0) {
+            console.log(`Upload progress for ${blobPath}: ${Math.round(progress.loadedBytes / fileContent.length * 100)}%`);
+          }
+        }
+      };
+      
+      // Upload the file
+      await blockBlobClient.upload(fileContent, fileContent.length, uploadOptions);
+      
+      console.log(`File uploaded successfully to Azure: ${blobPath}`);
+      
+      // Return the blob URL and path
+      return {
+        url: blockBlobClient.url,
+        path: blobPath
+      };
+    } catch (error: any) {
+      console.error('Error uploading file to Azure:', error);
+      
+      // As a fallback, try saving locally if Azure upload fails
+      try {
+        console.log('Azure upload failed, falling back to local storage');
+        const dirPath = path.join(this.localStoragePath, clientId, documentType);
+        if (!fs.existsSync(dirPath)) {
+          fs.mkdirSync(dirPath, { recursive: true });
+        }
+        
+        const fullPath = path.join(dirPath, fileName);
+        fs.writeFileSync(fullPath, fileContent);
+        console.log(`File saved locally as fallback: ${fullPath}`);
+        
+        // Return a URL format that matches Azure for consistency
+        const baseUrl = 'https://insurancedocuments.blob.core.windows.net';
+        return {
+          url: `${baseUrl}/${this.containerName}/${blobPath}`,
+          path: blobPath
+        };
+      } catch (localError: any) {
+        console.error('Error saving file locally as fallback:', localError);
+        throw new Error(`Failed to upload file to Azure and local fallback failed: ${error.message}`);
+      }
     }
   }
 
