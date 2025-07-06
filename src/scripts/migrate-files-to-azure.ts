@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 import { BlobServiceClient } from '@azure/storage-blob';
-import storageService from './services/storage';
+import { BlobStorageService } from '../services/storage';
 
 // Load environment variables
 dotenv.config();
