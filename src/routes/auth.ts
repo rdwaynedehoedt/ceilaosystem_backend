@@ -253,4 +253,62 @@ router.post('/users', authenticate, authorize(['admin']), async (req: Request, r
   }
 });
 
+// Validate token endpoint for microservices
+router.post('/validate-token', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    // If we get here, the token is valid (authenticate middleware already verified it)
+    // Now we need to get the full user details to return
+    try {
+      // Get connection from pool with resilience
+      const pool = await db.ensureConnection();
+    
+      const result = await pool.request()
+        .input('userId', req.user?.userId)
+        .query('SELECT id, email, first_name, last_name, role FROM users WHERE id = @userId');
+
+      const user = result.recordset[0];
+      if (!user) {
+        return res.status(404).json({ 
+          success: false,
+          message: 'User not found' 
+        });
+      }
+
+      // Return user data to the microservice
+      res.json({
+        success: true,
+        message: 'Token is valid',
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.first_name,
+          lastName: user.last_name,
+          role: user.role
+        }
+      });
+    } catch (dbError) {
+      console.error('Database error validating token:', dbError);
+      
+      // Try to reconnect
+      try {
+        await db.ensureConnection();
+      } catch (reconnectError) {
+        console.error('Failed to reconnect to database:', reconnectError);
+      }
+      
+      // Return error to client
+      return res.status(503).json({ 
+        success: false,
+        message: 'Database service unavailable, please try again later' 
+      });
+    }
+  } catch (error) {
+    console.error('Token validation error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Internal server error' 
+    });
+  }
+});
+
 export default router; 

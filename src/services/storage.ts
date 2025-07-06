@@ -198,16 +198,16 @@ export class BlobStorageService {
           BlobStorageService.connectionOptions
         );
         console.log('Created new Azure Blob Storage client instance');
-      } else {
+    } else {
         console.log('Reusing existing Azure Blob Storage client instance');
       }
       
       this.blobServiceClient = blobServiceClientInstance;
-      console.log('Azure Blob Storage client initialized successfully');
+        console.log('Azure Blob Storage client initialized successfully');
       
       // Test the connection immediately to verify it works
       this.testConnection();
-    } catch (error) {
+      } catch (error) {
       console.error('CRITICAL ERROR: Failed to initialize Azure Blob Storage client:', error);
       throw new Error('Failed to initialize Azure Blob Storage client. Check your connection string.');
     }
@@ -266,33 +266,33 @@ export class BlobStorageService {
     contentType: string
   ): Promise<{ url: string, path: string }> {
     // Create the blob/file path
-    const blobPath = `${clientId}/${documentType}/${fileName}`;
-    
+      const blobPath = `${clientId}/${documentType}/${fileName}`;
+      
     if (!this.blobServiceClient) {
       throw new Error('Azure Blob Storage client is not initialized');
-    }
-    
+        }
+        
     // Upload directly to Azure
     try {
       console.log(`Uploading directly to Azure: ${blobPath}`);
       
-      // Ensure container exists
-      await this.ensureContainer();
+        // Ensure container exists
+        await this.ensureContainer();
 
-      // Get a container client
-      const containerClient = this.blobServiceClient.getContainerClient(this.containerName);
-      
-      // Get a block blob client
-      const blockBlobClient = containerClient.getBlockBlobClient(blobPath);
-      
+        // Get a container client
+        const containerClient = this.blobServiceClient.getContainerClient(this.containerName);
+        
+        // Get a block blob client
+        const blockBlobClient = containerClient.getBlockBlobClient(blobPath);
+        
       // Determine if we should use parallel uploads based on file size
       const useParallelUpload = fileContent.length > 1024 * 1024; // > 1MB
       const concurrency = this.calculateConcurrency(fileContent.length);
       
       // Set upload options with optimized parameters
       const uploadOptions = {
-        blobHTTPHeaders: {
-          blobContentType: contentType
+          blobHTTPHeaders: {
+            blobContentType: contentType
         },
         // Use parallel upload for larger files with dynamic concurrency
         concurrency: concurrency,
@@ -316,15 +316,15 @@ export class BlobStorageService {
       const endTime = Date.now();
       const uploadTimeSeconds = (endTime - startTime) / 1000;
       const uploadSpeedMBps = (fileContent.length / (1024 * 1024)) / uploadTimeSeconds;
-      
-      console.log(`File uploaded successfully to Azure: ${blobPath}`);
+        
+        console.log(`File uploaded successfully to Azure: ${blobPath}`);
       console.log(`Upload time: ${uploadTimeSeconds.toFixed(2)}s, Speed: ${uploadSpeedMBps.toFixed(2)} MB/s`);
-      
+        
       // Return the blob URL and path
-      return {
-        url: blockBlobClient.url,
-        path: blobPath
-      };
+        return {
+          url: blockBlobClient.url,
+          path: blobPath
+        };
     } catch (error: any) {
       console.error('Error uploading file to Azure:', error);
       throw new Error(`Failed to upload file to Azure: ${error.message}`);
@@ -368,39 +368,39 @@ export class BlobStorageService {
       // Create the blob/file path
       const blobPath = `${clientId}/${documentType}/${fileName}`;
       
-      if (!this.blobServiceClient) {
+        if (!this.blobServiceClient) {
         throw new Error('Azure Blob Storage client is not initialized');
-      }
-      
-      // Get a container client
-      const containerClient = this.blobServiceClient.getContainerClient(this.containerName);
-      
-      // Check if blob exists
-      const blobClient = containerClient.getBlobClient(blobPath);
-      const exists = await blobClient.exists();
-      
-      if (!exists) {
+        }
+        
+        // Get a container client
+        const containerClient = this.blobServiceClient.getContainerClient(this.containerName);
+        
+        // Check if blob exists
+        const blobClient = containerClient.getBlobClient(blobPath);
+        const exists = await blobClient.exists();
+        
+        if (!exists) {
         console.error(`Blob not found in Azure: ${blobPath}`);
-        throw new Error(`File not found: ${fileName}`);
-      }
-      
+          throw new Error(`File not found: ${fileName}`);
+        }
+        
       console.log(`Blob exists in Azure: ${blobPath}, generating SAS URL...`);
-      
+        
       // Generate a SAS URL
-      const sasOptions = {
-        expiresOn: new Date(new Date().valueOf() + expirySeconds * 1000),
-        permissions: BlobSASPermissions.parse("r"), // Read-only permission
-        contentDisposition: 'inline',
-        protocol: 'https,http' as SASProtocol // Allow both protocols
-      };
-      
-      const sasUrl = await blobClient.generateSasUrl(sasOptions);
-      
+        const sasOptions = {
+          expiresOn: new Date(new Date().valueOf() + expirySeconds * 1000),
+          permissions: BlobSASPermissions.parse("r"), // Read-only permission
+          contentDisposition: 'inline',
+          protocol: 'https,http' as SASProtocol // Allow both protocols
+        };
+        
+        const sasUrl = await blobClient.generateSasUrl(sasOptions);
+        
       // Log the URL (without the SAS token part for security)
-      const sasUrlShort = sasUrl.substring(0, sasUrl.indexOf('?') + 10) + '...';
+        const sasUrlShort = sasUrl.substring(0, sasUrl.indexOf('?') + 10) + '...';
       console.log(`Generated Azure SAS URL: ${sasUrlShort}`);
-      
-      return sasUrl;
+        
+        return sasUrl;
     } catch (error: any) {
       console.error('Error generating secure URL:', error);
       throw new Error(`Failed to generate secure URL: ${error.message}`);
@@ -417,19 +417,19 @@ export class BlobStorageService {
       
       console.log(`Attempting to delete: ${blobPath}`);
       
-      if (!this.blobServiceClient) {
+        if (!this.blobServiceClient) {
         throw new Error('Azure Blob Storage client is not initialized');
-      }
-      
-      // Get a container client
-      const containerClient = this.blobServiceClient.getContainerClient(this.containerName);
-      
-      // Get a blob client
-      const blobClient = containerClient.getBlobClient(blobPath);
-      
-      // Check if blob exists before attempting to delete
-      const exists = await blobClient.exists();
-      
+        }
+        
+        // Get a container client
+        const containerClient = this.blobServiceClient.getContainerClient(this.containerName);
+        
+        // Get a blob client
+        const blobClient = containerClient.getBlobClient(blobPath);
+        
+        // Check if blob exists before attempting to delete
+        const exists = await blobClient.exists();
+        
       if (exists) {
         // Delete the blob
         await blobClient.delete();
