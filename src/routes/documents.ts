@@ -671,4 +671,82 @@ router.post('/migrate/:tempId/:newClientId', authenticate, async (req: AuthReque
   }
 });
 
+/**
+ * @route GET /api/documents/upload-token/:clientId/:documentType
+ * @desc Get a SAS token for direct upload to Azure Blob Storage
+ * @access Private
+ */
+router.get('/upload-token/:clientId/:documentType', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const { clientId, documentType } = req.params;
+    const { fileName } = req.query;
+    
+    console.log(`[${new Date().toISOString()}] Upload token request from ${req.ip}`);
+    console.log(`Client ID: ${clientId}, Document Type: ${documentType}`);
+    
+    // Generate a SAS token for direct upload
+    const result = await storageService.generateUploadSasToken(
+      clientId,
+      documentType,
+      fileName as string | undefined
+    );
+    
+    console.log(`Upload token generated successfully for ${result.blobName}`);
+    
+    return res.status(200).json({
+      message: 'Upload token generated successfully',
+      ...result,
+      expiresIn: '15 minutes'
+    });
+  } catch (error: any) {
+    console.error('Error generating upload token:', error);
+    return res.status(500).json({ message: `Error generating upload token: ${error.message}` });
+  }
+});
+
+/**
+ * @route POST /api/documents/confirm-upload/:clientId/:documentType
+ * @desc Confirm that a file has been uploaded directly to blob storage
+ * @access Private
+ */
+router.post('/confirm-upload/:clientId/:documentType', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const { clientId, documentType } = req.params;
+    const { blobName, blobUrl, fileName, fileType, fileSize } = req.body;
+    
+    if (!blobName || !blobUrl) {
+      return res.status(400).json({ message: 'blobName and blobUrl are required' });
+    }
+    
+    console.log(`[${new Date().toISOString()}] Upload confirmation for ${blobName}`);
+    
+    // Verify the blob exists
+    const containerClient = await storageService.getContainerClient();
+    const blobClient = containerClient.getBlobClient(blobName);
+    
+    const exists = await blobClient.exists();
+    if (!exists) {
+      return res.status(404).json({ message: 'Blob does not exist, upload may have failed' });
+    }
+    
+    // Get blob properties to verify size and type
+    const properties = await blobClient.getProperties();
+    
+    // Here you would typically store the document metadata in your database
+    // For example, associate the document with the client in your database
+    
+    return res.status(200).json({
+      message: 'Upload confirmed successfully',
+      blobUrl,
+      fileName: fileName || blobName.split('/').pop(),
+      contentType: properties.contentType,
+      contentLength: properties.contentLength,
+      createdOn: properties.createdOn
+    });
+  } catch (error: any) {
+    console.error('Error confirming upload:', error);
+    return res.status(500).json({ message: `Error confirming upload: ${error.message}` });
+  }
+});
+
 export default router; 

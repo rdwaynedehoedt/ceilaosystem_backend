@@ -475,6 +475,89 @@ export class BlobStorageService {
     
     return this.blobServiceClient.getContainerClient(this.containerName);
   }
+
+  /**
+   * Generate a SAS token for direct upload to Azure Blob Storage
+   * @param clientId The client ID to associate with the file
+   * @param documentType The type of document (e.g., 'nic', 'dob_proof', etc.)
+   * @param fileName Optional filename, will generate a UUID if not provided
+   * @param expiryMinutes How many minutes the token should be valid
+   * @returns Object containing the SAS URL, token, and blob details
+   */
+  async generateUploadSasToken(
+    clientId: string,
+    documentType: string,
+    fileName?: string,
+    expiryMinutes: number = 15
+  ): Promise<{
+    sasUrl: string,
+    sasToken: string,
+    blobUrl: string,
+    blobName: string,
+    containerName: string
+  }> {
+    try {
+      if (!this.blobServiceClient) {
+        throw new Error('Blob service client is not initialized');
+      }
+      
+      // Ensure container exists
+      await this.ensureContainer();
+      
+      // Generate a unique name for the file if not provided
+      const actualFileName = fileName || `${uuidv4()}${fileName ? path.extname(fileName) : ''}`;
+      
+      // Create the blob path
+      const blobName = `${clientId}/${documentType}/${actualFileName}`;
+      
+      // Get the container client
+      const containerClient = await this.getContainerClient();
+      
+      // Get credentials from connection string
+      const accountName = this.connectionString.match(/AccountName=([^;]+)/i)?.[1];
+      const accountKey = this.connectionString.match(/AccountKey=([^;]+)/i)?.[1];
+      
+      if (!accountName || !accountKey) {
+        throw new Error('Could not extract account credentials from connection string');
+      }
+      
+      const sharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey);
+      
+      // Create SAS token with write permissions
+      const sasOptions = {
+        containerName: this.containerName,
+        blobName: blobName,
+        permissions: BlobSASPermissions.parse('cw'), // Create and Write permissions
+        startsOn: new Date(),
+        expiresOn: new Date(new Date().valueOf() + expiryMinutes * 60 * 1000),
+        protocol: SASProtocol.Https
+      };
+      
+      // Generate the SAS token
+      const sasToken = generateBlobSASQueryParameters(
+        sasOptions,
+        sharedKeyCredential
+      ).toString();
+      
+      // Get the blob client to get the URL
+      const blobClient = containerClient.getBlobClient(blobName);
+      const blobUrl = blobClient.url;
+      
+      // Construct the full SAS URL
+      const sasUrl = `${blobUrl}?${sasToken}`;
+      
+      return {
+        sasUrl,
+        sasToken,
+        blobUrl,
+        blobName,
+        containerName: this.containerName
+      };
+    } catch (error) {
+      console.error('Error generating upload SAS token:', error);
+      throw error;
+    }
+  }
 }
 
 const storageService = new BlobStorageService();
