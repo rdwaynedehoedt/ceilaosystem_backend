@@ -17,8 +17,8 @@ if (!fs.existsSync(uploadsDir)) {
 
 const upload = multer({ dest: uploadsDir });
 
-// Get all clients - accessible to managers and sales reps
-router.get('/', authenticate, authorize(['admin', 'manager']), async (req: AuthRequest, res: Response) => {
+// Get all clients - accessible to managers and employees
+router.get('/', authenticate, authorize(['admin', 'manager', 'employee']), async (req: AuthRequest, res: Response) => {
   try {
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
     const offset = req.query.offset ? parseInt(req.query.offset as string) : 0;
@@ -53,7 +53,7 @@ router.get('/', authenticate, authorize(['admin', 'manager']), async (req: AuthR
 });
 
 // Get client by ID
-router.get('/:id', authenticate, authorize(['admin', 'manager']), async (req: AuthRequest, res: Response) => {
+router.get('/:id', authenticate, authorize(['admin', 'manager', 'employee']), async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const client = await Client.getById(id);
@@ -70,7 +70,7 @@ router.get('/:id', authenticate, authorize(['admin', 'manager']), async (req: Au
 });
 
 // Create a new client
-router.post('/', authenticate, authorize(['admin', 'manager']), async (req: AuthRequest, res: Response) => {
+router.post('/', authenticate, authorize(['admin', 'manager', 'employee']), async (req: AuthRequest, res: Response) => {
   try {
     const clientData: ClientData = req.body;
     
@@ -107,7 +107,7 @@ router.post('/', authenticate, authorize(['admin', 'manager']), async (req: Auth
   }
 });
 
-// Update a client
+// Update a client - only admin and manager can update
 router.put('/:id', authenticate, authorize(['admin', 'manager']), async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
@@ -203,7 +203,7 @@ router.put('/:id', authenticate, authorize(['admin', 'manager']), async (req: Au
   }
 });
 
-// Delete a client
+// Delete a client - only admin and manager can delete
 router.delete('/:id', authenticate, authorize(['admin', 'manager']), async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
@@ -234,7 +234,7 @@ router.delete('/:id', authenticate, authorize(['admin', 'manager']), async (req:
 });
 
 // Search clients
-router.post('/search', authenticate, authorize(['admin', 'manager']), async (req: AuthRequest, res: Response) => {
+router.post('/search', authenticate, authorize(['admin', 'manager', 'employee']), async (req: AuthRequest, res: Response) => {
   try {
     const searchCriteria: Partial<ClientData> = req.body;
     

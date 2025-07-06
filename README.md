@@ -104,3 +104,35 @@ npm run update-schema
 ```
 
 All schema changes use conditional statements (`IF NOT EXISTS`) to ensure they only run when needed, making the process idempotent and safe to run multiple times.
+
+## User Roles
+
+The system supports the following user roles:
+
+- **Admin**: Full access to all features and functionality
+- **Manager**: Can manage clients, generate reports, and perform most operations
+- **Employee**: Can view and add clients, but cannot edit or delete clients or generate reports
+- **Sales**: Access to sales-specific features
+
+### Setting Up the Employee Role
+
+To set up the employee role, run:
+
+```bash
+node setup-employee-role.js
+```
+
+This script will:
+1. Run the database migration to add the employee role
+2. Provide instructions for creating an employee user
+
+Once set up, employees can:
+- Access the manager dashboard
+- View client details
+- Add new clients
+
+But they cannot:
+- Edit existing clients
+- Delete clients
+- Generate reports
+- Import/export CSV files

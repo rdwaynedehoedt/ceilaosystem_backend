@@ -172,4 +172,8 @@ BEGIN
 END
 GO
 
+-- Add employee role to the users table
+ALTER TABLE users 
+MODIFY COLUMN role ENUM('admin', 'manager', 'underwriter', 'sales', 'employee') NOT NULL;
+
 -- Add any other performance-related database changes below 
