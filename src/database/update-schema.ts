@@ -2,7 +2,7 @@ import path from 'path';
 import fs from 'fs';
 import db from '../config/database';
 
-async function updateSchema() {
+async function updateSchema(): Promise<boolean> {
   try {
     console.log('Starting schema update...');
     const pool = await db.ensureConnection();
@@ -34,15 +34,22 @@ async function updateSchema() {
     }
     
     console.log('Schema update completed successfully');
+    return true;
   } catch (error) {
     console.error('Failed to update schema:', error);
-    process.exit(1);
+    return false;
   }
 }
 
 // Execute the function if this script is run directly
 if (require.main === module) {
-  updateSchema();
+  updateSchema()
+    .then(success => {
+      if (!success) {
+        process.exit(1);
+      }
+    })
+    .catch(() => process.exit(1));
 }
 
 // Export the function for use in other scripts
